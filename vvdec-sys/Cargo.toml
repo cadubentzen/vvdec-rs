@@ -5,4 +5,8 @@ edition = "2021"
 
 [build-dependencies]
 bindgen = "0.65"
-pkg-config = "0.3"
+cmake = "0.1"
+system-deps = "6.1"
+
+[package.metadata.system-deps]
+libvvdec = "2.0.0"

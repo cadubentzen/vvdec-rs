@@ -1,4 +1,4 @@
-use std::{mem::zeroed, ptr};
+use std::{mem, ptr};
 use vvdec_sys::*;
 
 pub struct Params {
@@ -8,7 +8,7 @@ pub struct Params {
 impl Default for Params {
     fn default() -> Self {
         unsafe {
-            let mut params = zeroed::<vvdecParams>();
+            let mut params: vvdecParams = mem::zeroed();
             vvdec_params_default(&mut params);
             Self { params }
         }

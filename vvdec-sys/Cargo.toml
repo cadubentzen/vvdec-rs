@@ -4,6 +4,9 @@ version = "0.0.1"
 edition = "2021"
 links = "vvdec"
 authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
+description = "Rust unsafe bindings to VVdeC"
+license-file = "LICENSE.txt"
+repository = "https://github.com/cadubentzen/vvdec-rs"
 
 [build-dependencies]
 bindgen = "0.66"

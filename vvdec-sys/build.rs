@@ -91,7 +91,7 @@ fn main() {
         )
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .allowlist_type("vvdec.*")
-        .allowlist_function("vvenc_.*")
+        .allowlist_function("vvdec_.*")
         .allowlist_var("VVDEC.*")
         .generate()
         .expect("Unable to generate bindings");

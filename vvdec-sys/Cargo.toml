@@ -2,11 +2,10 @@
 name = "vvdec-sys"
 version = "0.0.1"
 edition = "2021"
+links = "vvdec"
+authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 
 [build-dependencies]
-bindgen = "0.65"
+bindgen = "0.66"
 cmake = "0.1"
-system-deps = "6.1"
-
-[package.metadata.system-deps]
-libvvdec = "2.0.0"
+pkg-config = "0.3"

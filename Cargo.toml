@@ -6,6 +6,7 @@ authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 description = "Rust bindings for VVdeC"
 license = "BSD-3-Clause-Clear"
 repository = "https://github.com/cadubentzen/vvdec-rs"
+exclude = ["tests/", ".devcontainer/", ".github/"]
 
 [dependencies]
 thiserror = "1"

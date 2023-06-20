@@ -88,7 +88,7 @@ impl Decoder {
         data: &[u8],
         cts: Option<u64>,
         dts: Option<u64>,
-        random_access_point: bool,
+        is_random_access_point: bool,
     ) -> Result<Option<Frame>, Error> {
         let mut au = vvdecAccessUnit {
             payload: data.as_ptr() as *mut u8,
@@ -97,8 +97,8 @@ impl Decoder {
             cts: cts.unwrap_or_default(),
             dts: dts.unwrap_or_default(),
             ctsValid: cts.is_some(),
-            dtsValid: cts.is_some(),
-            rap: random_access_point,
+            dtsValid: dts.is_some(),
+            rap: is_random_access_point,
         };
 
         let mut frame: *mut vvdecFrame = ptr::null_mut();
@@ -109,10 +109,7 @@ impl Decoder {
             return Err(Error::new(ret));
         }
 
-        if frame != ptr::null_mut() {
-            return Ok(Some(Frame {}));
-        }
-        Ok(None)
+        Ok((frame != ptr::null_mut()).then(|| Frame {}))
     }
 
     pub fn flush(&mut self) -> Result<Frame, Error> {

@@ -8,6 +8,7 @@ license = "BSD-3-Clause-Clear"
 repository = "https://github.com/cadubentzen/vvdec-rs"
 
 [dependencies]
+thiserror = "1"
 vvdec-sys = { path = "./vvdec-sys", version = "0.0.3" }
 
 [workspace]

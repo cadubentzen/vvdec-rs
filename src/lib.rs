@@ -1,4 +1,10 @@
-use std::{mem, ptr};
+use std::{
+    fmt::Display,
+    mem,
+    ops::Deref,
+    ptr,
+    sync::{Arc, Mutex},
+};
 use vvdec_sys::*;
 
 pub struct Params {
@@ -65,11 +71,185 @@ impl Error {
 }
 
 // TODO
-#[derive(Debug)]
-pub struct Frame {}
+pub enum FrameFormat {}
 
+// TODO
+pub enum ColorFormat {}
+
+#[derive(Debug, Clone)]
+pub struct Frame {
+    inner: Arc<InnerFrame>,
+}
+
+#[derive(Debug)]
+pub struct Plane {
+    _frame: Frame,
+    plane: vvdecPlane,
+}
+
+impl Plane {
+    fn new(frame: Frame, plane: vvdecPlane) -> Self {
+        Self {
+            _frame: frame,
+            plane,
+        }
+    }
+
+    fn width(&self) -> u32 {
+        self.plane.width
+    }
+
+    fn height(&self) -> u32 {
+        self.plane.height
+    }
+
+    fn stride(&self) -> u32 {
+        self.plane.stride
+    }
+
+    fn bytes_per_sample(&self) -> u32 {
+        self.plane.bytesPerSample
+    }
+}
+
+impl Display for Plane {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Plane(width: {}, height: {}, stride: {}, bytes_per_sample: {})",
+            self.width(),
+            self.height(),
+            self.stride(),
+            self.bytes_per_sample()
+        )
+    }
+}
+
+impl AsRef<[u8]> for Plane {
+    fn as_ref(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                self.plane.ptr as *const u8,
+                self.plane.stride as usize
+                    * self.plane.height as usize
+                    * self.plane.bytesPerSample as usize,
+            )
+        }
+    }
+}
+
+impl Deref for Plane {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl Frame {
+    pub fn plane(&self, index: usize) -> Option<Plane> {
+        (0..self.num_planes())
+            .contains(&(index as u32))
+            .then(|| Plane::new(self.clone(), self.inner.planes[index]))
+    }
+
+    pub fn num_planes(&self) -> u32 {
+        self.inner.numPlanes
+    }
+
+    pub fn width(&self) -> u32 {
+        self.inner.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.inner.height
+    }
+
+    pub fn bit_depth(&self) -> u32 {
+        self.inner.bitDepth
+    }
+
+    pub fn frame_format(&self) -> FrameFormat {
+        todo!()
+    }
+
+    pub fn color_format(&self) -> ColorFormat {
+        todo!()
+    }
+
+    pub fn sequence_number(&self) -> u64 {
+        self.inner.sequenceNumber
+    }
+
+    pub fn cts(&self) -> Option<u64> {
+        self.inner.ctsValid.then(|| self.inner.cts)
+    }
+}
+
+impl Display for Frame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Frame(num planes: {}, width: {}, height: {}, bit depth: {}, \
+            sequence number: {}, cts: {})",
+            self.num_planes(),
+            self.width(),
+            self.height(),
+            self.bit_depth(),
+            self.sequence_number(),
+            self.cts().unwrap_or_default()
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct InnerFrame {
+    decoder: Decoder,
+    frame: ptr::NonNull<vvdecFrame>,
+}
+
+impl Deref for InnerFrame {
+    type Target = vvdecFrame;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.frame.as_ref() }
+    }
+}
+
+impl InnerFrame {
+    fn new(decoder: Decoder, frame: ptr::NonNull<vvdecFrame>) -> Self {
+        // println!("new frame: {:?}", frame.as_ptr());
+        Self { decoder, frame }
+    }
+}
+
+impl Drop for InnerFrame {
+    fn drop(&mut self) {
+        unsafe {
+            vvdec_frame_unref(
+                self.decoder.inner.lock().unwrap().decoder.as_ptr(),
+                self.frame.as_ptr(),
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Decoder {
+    inner: Arc<Mutex<InnerDecoder>>,
+}
+
+#[derive(Debug)]
+struct InnerDecoder {
     decoder: ptr::NonNull<vvdecDecoder>,
+}
+
+impl Drop for InnerDecoder {
+    fn drop(&mut self) {
+        unsafe {
+            vvdec_decoder_close(self.decoder.as_ptr());
+        }
+    }
 }
 
 impl Decoder {
@@ -80,7 +260,10 @@ impl Decoder {
 
     pub fn with_params(mut params: Params) -> Option<Self> {
         let decoder = unsafe { vvdec_decoder_open(&mut params.params) };
-        ptr::NonNull::new(decoder).map(|decoder| Self { decoder })
+
+        ptr::NonNull::new(decoder).map(|decoder| Self {
+            inner: Arc::new(Mutex::new(InnerDecoder { decoder })),
+        })
     }
 
     pub fn decode(
@@ -103,33 +286,37 @@ impl Decoder {
 
         let mut frame: *mut vvdecFrame = ptr::null_mut();
 
-        let ret = unsafe { vvdec_decode(self.decoder.as_ptr(), &mut au, &mut frame) };
+        let ret = unsafe {
+            vvdec_decode(
+                self.inner.lock().unwrap().decoder.as_ptr(),
+                &mut au,
+                &mut frame,
+            )
+        };
 
         if ret != vvdecErrorCodes_VVDEC_OK {
             return Err(Error::new(ret));
         }
 
-        Ok((frame != ptr::null_mut()).then(|| Frame {}))
+        Ok(ptr::NonNull::new(frame).map(|f| Frame {
+            inner: Arc::new(InnerFrame::new(self.clone(), f)),
+        }))
     }
 
     pub fn flush(&mut self) -> Result<Frame, Error> {
         let mut frame: *mut vvdecFrame = ptr::null_mut();
 
-        let ret = unsafe { vvdec_flush(self.decoder.as_ptr(), &mut frame) };
+        let ret = unsafe { vvdec_flush(self.inner.lock().unwrap().decoder.as_ptr(), &mut frame) };
 
         if ret != vvdecErrorCodes_VVDEC_OK {
             return Err(Error::new(ret));
         }
 
         assert!(frame != ptr::null_mut());
-        Ok(Frame {})
-    }
-}
-
-impl Drop for Decoder {
-    fn drop(&mut self) {
-        unsafe {
-            vvdec_decoder_close(self.decoder.as_ptr());
-        }
+        Ok(Frame {
+            inner: Arc::new(InnerFrame::new(self.clone(), unsafe {
+                ptr::NonNull::new_unchecked(frame)
+            })),
+        })
     }
 }

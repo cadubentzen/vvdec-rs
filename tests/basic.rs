@@ -16,9 +16,20 @@ fn basic() {
         Err(Error::TryAgain)
     );
 
-    assert_matches!(decoder.flush(), Ok(Frame {}));
-    assert_matches!(decoder.flush(), Ok(Frame {}));
-    assert_matches!(decoder.flush(), Ok(Frame {}));
+    let frame1 = decoder.flush().unwrap();
+    println!("{frame1}");
+    let plane = frame1.plane(0).unwrap();
+    println!("plane 0: {} len {}", plane, plane.len());
+    let plane = frame1.plane(1).unwrap();
+    println!("plane 1: {} len {}", plane, plane.len());
+    let plane = frame1.plane(2).unwrap();
+    println!("plane 2: {} len {}", plane, plane.len());
+
+    let frame2 = decoder.flush().unwrap();
+    println!("{frame2}");
+
+    let frame3 = decoder.flush().unwrap();
+    println!("{frame3}");
 
     assert_matches!(decoder.flush(), Err(Error::Eof));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));

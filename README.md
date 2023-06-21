@@ -2,7 +2,7 @@
 
 Rust bindings for [VVdeC](https://github.com/fraunhoferhhi/vvdec).
 
-**Work in progress**: actually no work done at all, just created the repo.
+**Work in progress**: the bindings are not stable yet and may change at any time. Stabilization will begin once integration with some framework is working (e.g. GStreamer).
 
 ## License
 

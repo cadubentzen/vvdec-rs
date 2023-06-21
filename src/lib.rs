@@ -112,11 +112,73 @@ impl Error {
     }
 }
 
-// TODO
-pub enum FrameFormat {}
+#[derive(Debug)]
+pub enum FrameFormat {
+    Invalid,
+    Progressive,
+    TopField,
+    BottomField,
+    TopBottom,
+    BottomTop,
+    TopBottomTop,
+    BottomTopBotttom,
+    FrameDouble,
+    FrameTriple,
+    TopPairedWithPrevious,
+    BottomPairedWithPrevious,
+    TopPairedWithNext,
+    BottomPairedWithNext,
+    Unknown(i32),
+}
 
-// TODO
-pub enum ColorFormat {}
+impl FrameFormat {
+    fn new(frame_format: vvdecFrameFormat) -> Self {
+        use FrameFormat::*;
+        #[allow(non_upper_case_globals)]
+        match frame_format {
+            vvdecFrameFormat_VVDEC_FF_INVALID => Invalid,
+            vvdecFrameFormat_VVDEC_FF_PROGRESSIVE => Progressive,
+            vvdecFrameFormat_VVDEC_FF_TOP_FIELD => TopField,
+            vvdecFrameFormat_VVDEC_FF_BOT_FIELD => BottomField,
+            vvdecFrameFormat_VVDEC_FF_TOP_BOT => TopBottom,
+            vvdecFrameFormat_VVDEC_FF_BOT_TOP => BottomTop,
+            vvdecFrameFormat_VVDEC_FF_TOP_BOT_TOP => TopBottomTop,
+            vvdecFrameFormat_VVDEC_FF_BOT_TOP_BOT => BottomTopBotttom,
+            vvdecFrameFormat_VVDEC_FF_FRAME_DOUB => FrameDouble,
+            vvdecFrameFormat_VVDEC_FF_FRAME_TRIP => FrameTriple,
+            vvdecFrameFormat_VVDEC_FF_TOP_PW_PREV => TopPairedWithPrevious,
+            vvdecFrameFormat_VVDEC_FF_BOT_PW_PREV => BottomPairedWithPrevious,
+            vvdecFrameFormat_VVDEC_FF_TOP_PW_NEXT => TopPairedWithNext,
+            vvdecFrameFormat_VVDEC_FF_BOT_PW_NEXT => BottomPairedWithNext,
+            _ => Unknown(frame_format),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ColorFormat {
+    Invalid,
+    Yuv400Planar,
+    Yuv420Planar,
+    Yuv422Planar,
+    Yuv444Planar,
+    Unknown(i32),
+}
+
+impl ColorFormat {
+    fn new(color_format: vvdecColorFormat) -> Self {
+        use ColorFormat::*;
+        #[allow(non_upper_case_globals)]
+        match color_format {
+            vvdecColorFormat_VVDEC_CF_INVALID => Invalid,
+            vvdecColorFormat_VVDEC_CF_YUV400_PLANAR => Yuv400Planar,
+            vvdecColorFormat_VVDEC_CF_YUV420_PLANAR => Yuv420Planar,
+            vvdecColorFormat_VVDEC_CF_YUV422_PLANAR => Yuv422Planar,
+            vvdecColorFormat_VVDEC_CF_YUV444_PLANAR => Yuv444Planar,
+            _ => Unknown(color_format),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Frame {
@@ -188,6 +250,9 @@ impl Deref for Plane {
     }
 }
 
+// TODO
+pub struct PicAttributes {}
+
 impl Frame {
     pub fn plane(&self, index: usize) -> Option<Plane> {
         (0..self.num_planes())
@@ -212,11 +277,11 @@ impl Frame {
     }
 
     pub fn frame_format(&self) -> FrameFormat {
-        todo!()
+        FrameFormat::new(self.inner.frameFormat)
     }
 
     pub fn color_format(&self) -> ColorFormat {
-        todo!()
+        ColorFormat::new(self.inner.colorFormat)
     }
 
     pub fn sequence_number(&self) -> u64 {
@@ -225,6 +290,10 @@ impl Frame {
 
     pub fn cts(&self) -> Option<u64> {
         self.inner.ctsValid.then(|| self.inner.cts)
+    }
+
+    pub fn pic_attributes(&self) -> Option<PicAttributes> {
+        todo!()
     }
 }
 

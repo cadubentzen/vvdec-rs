@@ -33,7 +33,7 @@ impl Params {
     }
 
     pub fn set_error_handling(&mut self, error_handling: ErrorHandling) {
-        self.params.errHandlingFlags = error_handling.into_ffi();
+        self.params.errHandlingFlags = error_handling.to_ffi();
     }
 }
 
@@ -44,7 +44,7 @@ pub enum ErrorHandling {
 }
 
 impl ErrorHandling {
-    fn into_ffi(&self) -> vvdecErrHandlingFlags {
+    fn to_ffi(&self) -> vvdecErrHandlingFlags {
         use ErrorHandling::*;
         match self {
             Off => vvdecErrHandlingFlags_VVDEC_ERR_HANDLING_OFF,
@@ -289,7 +289,7 @@ impl Frame {
     }
 
     pub fn cts(&self) -> Option<u64> {
-        self.inner.ctsValid.then(|| self.inner.cts)
+        self.inner.ctsValid.then_some(self.inner.cts)
     }
 
     pub fn pic_attributes(&self) -> Option<PicAttributes> {
@@ -423,7 +423,7 @@ impl Decoder {
             return Err(Error::new(ret));
         }
 
-        assert!(frame != ptr::null_mut());
+        assert!(!frame.is_null());
         Ok(Frame {
             inner: Arc::new(InnerFrame::new(self.clone(), unsafe {
                 ptr::NonNull::new_unchecked(frame)

@@ -51,8 +51,7 @@ mod build {
         }
 
         let install_dir = cmake::build(source);
-        let pkg_config_dir = install_dir.join("lib/pkgconfig");
-        pkg_config_dir
+        install_dir.join("lib/pkgconfig")
     }
 }
 

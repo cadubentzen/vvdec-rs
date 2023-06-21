@@ -237,13 +237,14 @@ impl Display for Frame {
         write!(
             f,
             "Frame(num planes: {}, width: {}, height: {}, bit depth: {}, \
-            sequence number: {}, cts: {})",
+            sequence number: {}, cts: {}, pic attributes: {:?})",
             self.num_planes(),
             self.width(),
             self.height(),
             self.bit_depth(),
             self.sequence_number(),
-            self.cts().unwrap_or_default()
+            self.cts().unwrap_or_default(),
+            self.pic_attributes()
         )
     }
 }
@@ -345,6 +346,7 @@ impl Deref for Plane {
     }
 }
 
+#[derive(Debug)]
 pub struct PictureAttributes {
     pub nal_type: NalType,
     pub slice_type: SliceType,
@@ -459,6 +461,7 @@ impl NalType {
     }
 }
 
+#[derive(Debug)]
 pub enum SliceType {
     I,
     P,

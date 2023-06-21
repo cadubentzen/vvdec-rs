@@ -47,6 +47,8 @@ pub enum Error {
     TryAgain,
     #[error("end of file")]
     Eof,
+    #[error("unknown error with code {0}")]
+    Unknown(i32),
 }
 
 impl Error {
@@ -65,7 +67,7 @@ impl Error {
             vvdecErrorCodes_VVDEC_ERR_CPU => Cpu,
             vvdecErrorCodes_VVDEC_TRY_AGAIN => TryAgain,
             vvdecErrorCodes_VVDEC_EOF => Eof,
-            _ => unreachable!(),
+            _ => Unknown(code),
         }
     }
 }

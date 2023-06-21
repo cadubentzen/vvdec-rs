@@ -10,7 +10,10 @@ macro_rules! assert_matches {
 fn basic() {
     const DATA: &[u8] = include_bytes!("../tests/short.vvc");
 
-    let mut decoder = Decoder::new().unwrap();
+    let mut params = Params::new();
+    params.set_remove_padding(true);
+
+    let mut decoder = Decoder::with_params(params).unwrap();
     assert_matches!(
         decoder.decode(DATA, Some(0), Some(0), false),
         Err(Error::TryAgain)

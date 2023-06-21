@@ -11,7 +11,47 @@ pub struct Params {
     params: vvdecParams,
 }
 
-// TODO: builder to override params
+impl Params {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_num_threads(&mut self, num_threads: i32) {
+        self.params.threads = num_threads;
+    }
+
+    pub fn set_num_parse_threads(&mut self, num_parse_threads: i32) {
+        self.params.parseThreads = num_parse_threads;
+    }
+
+    pub fn set_verify_picture_hash(&mut self, verify_picture_hash: bool) {
+        self.params.verifyPictureHash = verify_picture_hash;
+    }
+
+    pub fn set_remove_padding(&mut self, remove_padding: bool) {
+        self.params.removePadding = remove_padding;
+    }
+
+    pub fn set_error_handling(&mut self, error_handling: ErrorHandling) {
+        self.params.errHandlingFlags = error_handling.into_ffi();
+    }
+}
+
+#[derive(Debug)]
+pub enum ErrorHandling {
+    Off,
+    TryContinue,
+}
+
+impl ErrorHandling {
+    fn into_ffi(&self) -> vvdecErrHandlingFlags {
+        use ErrorHandling::*;
+        match self {
+            Off => vvdecErrHandlingFlags_VVDEC_ERR_HANDLING_OFF,
+            TryContinue => vvdecErrHandlingFlags_VVDEC_ERR_HANDLING_TRY_CONTINUE,
+        }
+    }
+}
 
 impl Default for Params {
     fn default() -> Self {

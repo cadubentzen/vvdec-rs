@@ -6,4 +6,4 @@ Rust bindings for [VVdeC](https://github.com/fraunhoferhhi/vvdec).
 
 ## License
 
-This crate is license under the [BSD-3-Clause-Clear](./LICENSE.txt) license, to maintain compatibility with the [VVdeC's license](https://github.com/fraunhoferhhi/vvdec/blob/master/LICENSE.txt).
+This crate is license under the [BSD-3-Clause-Clear](./LICENSE.txt) license, to maintain compatibility with [VVdeC's license](https://github.com/fraunhoferhhi/vvdec/blob/master/LICENSE.txt).

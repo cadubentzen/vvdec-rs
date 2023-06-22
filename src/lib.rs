@@ -227,7 +227,7 @@ impl Frame {
         self.inner.ctsValid.then_some(self.inner.cts)
     }
 
-    pub fn pic_attributes(&self) -> Option<PictureAttributes> {
+    pub fn picture_attributes(&self) -> Option<PictureAttributes> {
         ptr::NonNull::new(self.inner.picAttributes).map(PictureAttributes::new)
     }
 }
@@ -237,14 +237,14 @@ impl Display for Frame {
         write!(
             f,
             "Frame(num planes: {}, width: {}, height: {}, bit depth: {}, \
-            sequence number: {}, cts: {}, pic attributes: {:?})",
+            sequence number: {}, cts: {}, pic attributes: {:#?})",
             self.num_planes(),
             self.width(),
             self.height(),
             self.bit_depth(),
             self.sequence_number(),
             self.cts().unwrap_or_default(),
-            self.pic_attributes()
+            self.picture_attributes()
         )
     }
 }
@@ -353,6 +353,10 @@ pub struct PictureAttributes {
     pub is_ref_pic: bool,
     pub temporal_layer: u32,
     pub poc: u64,
+    pub num_compressed_bits: u32,
+    pub vui: Option<Vui>,
+    pub hrd: Option<Hrd>,
+    pub ols_hrd: Option<OlsHrd>,
 }
 
 impl PictureAttributes {
@@ -363,12 +367,10 @@ impl PictureAttributes {
             isRefPic,
             temporalLayer,
             poc,
-            // Those fields are not used yet. May be added
-            // to the API if proven useful.
-            bits: _,
-            vui: _,
-            hrd: _,
-            olsHrd: _,
+            bits,
+            vui,
+            hrd,
+            olsHrd,
         } = unsafe { pic_attributes.as_ref() };
         Self {
             nal_type: NalType::new(nalType),
@@ -376,6 +378,10 @@ impl PictureAttributes {
             is_ref_pic: isRefPic,
             temporal_layer: temporalLayer,
             poc,
+            num_compressed_bits: bits,
+            vui: ptr::NonNull::new(vui).map(Vui::new),
+            hrd: ptr::NonNull::new(hrd).map(Hrd::new),
+            ols_hrd: ptr::NonNull::new(olsHrd).map(OlsHrd::new),
         }
     }
 }
@@ -562,6 +568,180 @@ impl ColorFormat {
             vvdecColorFormat_VVDEC_CF_YUV422_PLANAR => Yuv422Planar,
             vvdecColorFormat_VVDEC_CF_YUV444_PLANAR => Yuv444Planar,
             _ => Unknown(color_format),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Hrd {
+    pub num_units_in_tick: u32,
+    pub time_scale: u32,
+    pub general_nal_hrd_params_present_flag: bool,
+    pub general_vcl_hrd_params_present_flag: bool,
+    pub general_same_pic_timing_in_all_ols_flag: bool,
+    pub tick_divisor: u32,
+    pub general_decoding_unit_hrd_params_present_flag: bool,
+    pub bit_rate_scale: u32,
+    pub cpb_size_scale: u32,
+    pub cpb_size_du_scale: u32,
+    pub hrd_cpb_cnt: u32,
+}
+
+impl Hrd {
+    pub fn new(hrd: ptr::NonNull<vvdecHrd>) -> Self {
+        let hrd = unsafe { hrd.as_ref() };
+        let vvdecHrd {
+            numUnitsInTick,
+            timeScale,
+            generalNalHrdParamsPresentFlag,
+            generalVclHrdParamsPresentFlag,
+            generalSamePicTimingInAllOlsFlag,
+            tickDivisor,
+            generalDecodingUnitHrdParamsPresentFlag,
+            bitRateScale,
+            cpbSizeScale,
+            cpbSizeDuScale,
+            hrdCpbCnt,
+        } = *hrd;
+
+        Self {
+            num_units_in_tick: numUnitsInTick,
+            time_scale: timeScale,
+            general_nal_hrd_params_present_flag: generalNalHrdParamsPresentFlag,
+            general_vcl_hrd_params_present_flag: generalVclHrdParamsPresentFlag,
+            general_same_pic_timing_in_all_ols_flag: generalSamePicTimingInAllOlsFlag,
+            tick_divisor: tickDivisor,
+            general_decoding_unit_hrd_params_present_flag: generalDecodingUnitHrdParamsPresentFlag,
+            bit_rate_scale: bitRateScale,
+            cpb_size_scale: cpbSizeScale,
+            cpb_size_du_scale: cpbSizeDuScale,
+            hrd_cpb_cnt: hrdCpbCnt,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum SampleAspectRatio {
+    Indicator(i32),
+    WidthHeight(i32, i32),
+}
+
+impl SampleAspectRatio {
+    fn new(aspect_ratio_idc: i32, sar_width: i32, sar_height: i32) -> Self {
+        if aspect_ratio_idc == 255 {
+            Self::WidthHeight(sar_width, sar_height)
+        } else {
+            Self::Indicator(aspect_ratio_idc)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Vui {
+    pub sample_aspect_ratio: Option<SampleAspectRatio>,
+    pub aspect_ratio_constant_flag: bool,
+    pub non_packed_flag: bool,
+    pub non_projected_flag: bool,
+    pub colour_description_present_flag: bool,
+    pub colour_primaries: i32,
+    pub transfer_characteristics: i32,
+    pub matrix_coefficients: i32,
+    pub progressive_source_flag: bool,
+    pub interlaced_source_flag: bool,
+    pub chroma_loc_info_present_flag: bool,
+    pub chroma_sample_loc_type_top_field: i32,
+    pub chroma_sample_loc_type_bottom_field: i32,
+    pub chroma_sample_loc_type: i32,
+    pub overscan_info_present_flag: bool,
+    pub overscan_appropriate_flag: bool,
+    pub video_signal_type_present_flag: bool,
+    pub video_full_range_flag: bool,
+}
+
+impl Vui {
+    pub fn new(vui: ptr::NonNull<vvdecVui>) -> Self {
+        let vui = unsafe { vui.as_ref() };
+
+        let vvdecVui {
+            aspectRatioInfoPresentFlag,
+            aspectRatioConstantFlag,
+            nonPackedFlag,
+            nonProjectedFlag,
+            aspectRatioIdc,
+            sarWidth,
+            sarHeight,
+            colourDescriptionPresentFlag,
+            colourPrimaries,
+            transferCharacteristics,
+            matrixCoefficients,
+            progressiveSourceFlag,
+            interlacedSourceFlag,
+            chromaLocInfoPresentFlag,
+            chromaSampleLocTypeTopField,
+            chromaSampleLocTypeBottomField,
+            chromaSampleLocType,
+            overscanInfoPresentFlag,
+            overscanAppropriateFlag,
+            videoSignalTypePresentFlag,
+            videoFullRangeFlag,
+        } = *vui;
+
+        Self {
+            sample_aspect_ratio: aspectRatioInfoPresentFlag.then_some(SampleAspectRatio::new(
+                aspectRatioIdc,
+                sarWidth,
+                sarHeight,
+            )),
+            aspect_ratio_constant_flag: aspectRatioConstantFlag,
+            non_packed_flag: nonPackedFlag,
+            non_projected_flag: nonProjectedFlag,
+            colour_description_present_flag: colourDescriptionPresentFlag,
+            colour_primaries: colourPrimaries,
+            transfer_characteristics: transferCharacteristics,
+            matrix_coefficients: matrixCoefficients,
+            progressive_source_flag: progressiveSourceFlag,
+            interlaced_source_flag: interlacedSourceFlag,
+            chroma_loc_info_present_flag: chromaLocInfoPresentFlag,
+            chroma_sample_loc_type_top_field: chromaSampleLocTypeTopField,
+            chroma_sample_loc_type_bottom_field: chromaSampleLocTypeBottomField,
+            chroma_sample_loc_type: chromaSampleLocType,
+            overscan_info_present_flag: overscanInfoPresentFlag,
+            overscan_appropriate_flag: overscanAppropriateFlag,
+            video_signal_type_present_flag: videoSignalTypePresentFlag,
+            video_full_range_flag: videoFullRangeFlag,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct OlsHrd {
+    pub fixed_pic_rate_general_flag: bool,
+    pub fixed_pic_rate_within_cvs_flag: bool,
+    pub element_duration_in_tc: u32,
+    pub low_delay_hrd_flag: bool,
+}
+
+impl OlsHrd {
+    pub fn new(ols_hrd: ptr::NonNull<vvdecOlsHrd>) -> Self {
+        let ols_hrd = unsafe { ols_hrd.as_ref() };
+
+        let vvdecOlsHrd {
+            fixedPicRateGeneralFlag,
+            fixedPicRateWithinCvsFlag,
+            elementDurationInTc,
+            lowDelayHrdFlag,
+            bitRateValueMinus1: _,
+            cpbSizeValueMinus1: _,
+            ducpbSizeValueMinus1: _,
+            duBitRateValueMinus1: _,
+            cbrFlag: _,
+        } = *ols_hrd;
+
+        OlsHrd {
+            fixed_pic_rate_general_flag: fixedPicRateGeneralFlag,
+            fixed_pic_rate_within_cvs_flag: fixedPicRateWithinCvsFlag,
+            element_duration_in_tc: elementDurationInTc,
+            low_delay_hrd_flag: lowDelayHrdFlag,
         }
     }
 }

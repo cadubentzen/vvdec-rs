@@ -12,3 +12,6 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 vvdec = { path = ".." }
 y4m = "0.8"
+
+[dev-dependencies]
+assert_cmd = "2"

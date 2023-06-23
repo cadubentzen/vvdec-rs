@@ -189,6 +189,7 @@ pub struct Frame {
 }
 
 impl Frame {
+    // TODO: add Component enum and use that
     pub fn plane(&self, index: usize) -> Option<Plane> {
         (0..self.num_planes())
             .contains(&(index as u32))

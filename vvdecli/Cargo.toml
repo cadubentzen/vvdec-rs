@@ -1,0 +1,14 @@
+[package]
+name = "vvdecli"
+version = "0.0.1"
+edition = "2021"
+authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
+description = "CLI application for decoding VVC bitstreams"
+license = "BSD-3-Clause-Clear"
+repository = "https://github.com/cadubentzen/vvdec-rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+vvdec = { path = ".." }
+y4m = "0.8"

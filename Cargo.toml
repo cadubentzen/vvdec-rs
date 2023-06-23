@@ -13,4 +13,4 @@ thiserror = "1"
 vvdec-sys = { path = "./vvdec-sys", version = "0.0.5" }
 
 [workspace]
-members = ["vvdec-sys"]
+members = ["vvdec-sys", "vvdecli"]

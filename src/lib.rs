@@ -211,20 +211,20 @@ impl Frame {
         self.inner.bitDepth
     }
 
-    pub fn frame_format(&self) -> FrameFormat {
-        FrameFormat::new(self.inner.frameFormat)
-    }
-
-    pub fn color_format(&self) -> ColorFormat {
-        ColorFormat::new(self.inner.colorFormat)
-    }
-
     pub fn sequence_number(&self) -> u64 {
         self.inner.sequenceNumber
     }
 
     pub fn cts(&self) -> Option<u64> {
         self.inner.ctsValid.then_some(self.inner.cts)
+    }
+
+    pub fn frame_format(&self) -> FrameFormat {
+        FrameFormat::new(self.inner.frameFormat)
+    }
+
+    pub fn color_format(&self) -> ColorFormat {
+        ColorFormat::new(self.inner.colorFormat)
     }
 
     pub fn picture_attributes(&self) -> Option<PictureAttributes> {
@@ -237,13 +237,15 @@ impl Display for Frame {
         write!(
             f,
             "Frame(num planes: {}, width: {}, height: {}, bit depth: {}, \
-            sequence number: {}, cts: {}, pic attributes: {:#?})",
+            sequence number: {}, cts: {}, frame format: {:?}, color format: {:?}, pic attributes: {:#?})",
             self.num_planes(),
             self.width(),
             self.height(),
             self.bit_depth(),
             self.sequence_number(),
             self.cts().unwrap_or_default(),
+            self.frame_format(),
+            self.color_format(),
             self.picture_attributes()
         )
     }
@@ -330,9 +332,10 @@ impl AsRef<[u8]> for Plane {
         unsafe {
             std::slice::from_raw_parts(
                 self.plane.ptr as *const u8,
-                self.plane.stride as usize
-                    * self.plane.height as usize
-                    * self.plane.bytesPerSample as usize,
+                // TODO: VVdeC docs say the stride is in number of samples, but it's
+                // actually in number of bytes
+                // https://github.com/fraunhoferhhi/vvdec/pull/145
+                self.plane.stride as usize * self.plane.height as usize,
             )
         }
     }

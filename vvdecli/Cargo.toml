@@ -10,7 +10,7 @@ repository = "https://github.com/cadubentzen/vvdec-rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-vvdec = { path = ".." }
+vvdec = { path = "..", version = "0.0.4" }
 y4m = "0.8"
 
 [dev-dependencies]

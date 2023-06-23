@@ -740,7 +740,7 @@ impl OlsHrd {
             cbrFlag: _,
         } = *ols_hrd;
 
-        OlsHrd {
+        Self {
             fixed_pic_rate_general_flag: fixedPicRateGeneralFlag,
             fixed_pic_rate_within_cvs_flag: fixedPicRateWithinCvsFlag,
             element_duration_in_tc: elementDurationInTc,

@@ -90,15 +90,24 @@ fn create_y4m_encoder<W: Write>(frame: &Frame, writer: W) -> Result<Encoder<W>, 
             den: hrd.num_units_in_tick as usize,
         },
     )
-    .with_colorspace(convert_colorspace(frame.color_format()))
+    .with_colorspace(convert_colorspace(frame.color_format(), frame.bit_depth()))
     .write_header(writer)
 }
 
-fn convert_colorspace(color_format: ColorFormat) -> Colorspace {
-    match color_format {
-        ColorFormat::Yuv420Planar => Colorspace::C420p10,
-        ColorFormat::Yuv422Planar => Colorspace::C422p10,
-        ColorFormat::Yuv444Planar => Colorspace::C444p10,
-        _ => unimplemented!(),
+fn convert_colorspace(color_format: ColorFormat, bit_depth: u32) -> Colorspace {
+    if bit_depth > 8 {
+        match color_format {
+            ColorFormat::Yuv420Planar => Colorspace::C420p10,
+            ColorFormat::Yuv422Planar => Colorspace::C422p10,
+            ColorFormat::Yuv444Planar => Colorspace::C444p10,
+            _ => unimplemented!(),
+        }
+    } else {
+        match color_format {
+            ColorFormat::Yuv420Planar => Colorspace::C420,
+            ColorFormat::Yuv422Planar => Colorspace::C422,
+            ColorFormat::Yuv444Planar => Colorspace::C444,
+            _ => unimplemented!(),
+        }
     }
 }

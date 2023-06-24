@@ -189,11 +189,8 @@ pub struct Frame {
 }
 
 impl Frame {
-    // TODO: add Component enum and use that
-    pub fn plane(&self, index: usize) -> Option<Plane> {
-        (0..self.num_planes())
-            .contains(&(index as u32))
-            .then(|| Plane::new(self.clone(), self.inner.planes[index]))
+    pub fn plane(&self, component: PlaneComponent) -> Plane {
+        Plane::new(self.clone(), component)
     }
 
     pub fn num_planes(&self) -> u32 {
@@ -286,32 +283,34 @@ impl Drop for InnerFrame {
 
 #[derive(Debug)]
 pub struct Plane {
-    _frame: Frame,
-    plane: vvdecPlane,
+    frame: Frame,
+    component: PlaneComponent,
 }
 
 impl Plane {
-    fn new(frame: Frame, plane: vvdecPlane) -> Self {
-        Self {
-            _frame: frame,
-            plane,
-        }
+    fn new(frame: Frame, component: PlaneComponent) -> Self {
+        Self { frame, component }
     }
 
-    fn width(&self) -> u32 {
-        self.plane.width
+    #[inline]
+    fn inner(&self) -> vvdecPlane {
+        self.frame.inner.planes[self.component.to_ffi() as usize]
     }
 
-    fn height(&self) -> u32 {
-        self.plane.height
+    pub fn width(&self) -> u32 {
+        self.inner().width
     }
 
-    fn stride(&self) -> u32 {
-        self.plane.stride
+    pub fn height(&self) -> u32 {
+        self.inner().height
     }
 
-    fn bytes_per_sample(&self) -> u32 {
-        self.plane.bytesPerSample
+    pub fn stride(&self) -> u32 {
+        self.inner().stride
+    }
+
+    pub fn bytes_per_sample(&self) -> u32 {
+        self.inner().bytesPerSample
     }
 }
 
@@ -332,11 +331,11 @@ impl AsRef<[u8]> for Plane {
     fn as_ref(&self) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
-                self.plane.ptr as *const u8,
-                // TODO: VVdeC docs say the stride is in number of samples, but it's
+                self.inner().ptr as *const u8,
+                // VVdeC docs say the stride is in number of samples, but it's
                 // actually in number of bytes
                 // https://github.com/fraunhoferhhi/vvdec/pull/145
-                self.plane.stride as usize * self.plane.height as usize,
+                self.stride() as usize * self.height() as usize,
             )
         }
     }
@@ -347,6 +346,24 @@ impl Deref for Plane {
 
     fn deref(&self) -> &Self::Target {
         self.as_ref()
+    }
+}
+
+#[derive(Debug)]
+pub enum PlaneComponent {
+    Y,
+    U,
+    V,
+}
+
+impl PlaneComponent {
+    #[inline]
+    fn to_ffi(&self) -> u32 {
+        match self {
+            PlaneComponent::Y => vvdecComponentType_VVDEC_CT_Y,
+            PlaneComponent::U => vvdecComponentType_VVDEC_CT_U,
+            PlaneComponent::V => vvdecComponentType_VVDEC_CT_V,
+        }
     }
 }
 

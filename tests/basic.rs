@@ -9,7 +9,7 @@ macro_rules! assert_matches {
 const DATA: &[u8] = include_bytes!("../tests/short.vvc");
 
 #[test]
-fn basic() {
+fn basic() -> Result<(), Error> {
     let mut params = Params::new();
     params.set_remove_padding(true);
 
@@ -19,27 +19,29 @@ fn basic() {
         Err(Error::TryAgain)
     );
 
-    let frame1 = decoder.flush().unwrap();
+    let frame1 = decoder.flush()?;
     println!("{frame1}");
-    let plane = frame1.plane(0).unwrap();
+    let plane = frame1.plane(PlaneComponent::Y);
     println!("plane 0: {} len {}", plane, plane.len());
-    let plane = frame1.plane(1).unwrap();
+    let plane = frame1.plane(PlaneComponent::U);
     println!("plane 1: {} len {}", plane, plane.len());
-    let plane = frame1.plane(2).unwrap();
+    let plane = frame1.plane(PlaneComponent::V);
     println!("plane 2: {} len {}", plane, plane.len());
 
-    let frame2 = decoder.flush().unwrap();
+    let frame2 = decoder.flush()?;
     println!("{frame2}");
 
-    let frame3 = decoder.flush().unwrap();
+    let frame3 = decoder.flush()?;
     println!("{frame3}");
 
     assert_matches!(decoder.flush(), Err(Error::Eof));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));
+
+    Ok(())
 }
 
 #[test]
-fn split_data() {
+fn split_data() -> Result<(), Error> {
     let mut decoder = Decoder::new().unwrap();
 
     const ANNEX_B_START_CODE: &[u8] = &[0, 0, 0, 1];
@@ -52,28 +54,26 @@ fn split_data() {
     indices.push(DATA.len());
     for pair in indices.windows(2) {
         let sub_slice = &DATA[pair[0]..pair[1]];
-        println!("sub slice: {:02x?}", sub_slice);
-        println!(
-            "decode result: {:?}",
-            decoder.decode(sub_slice, Some(0), Some(0), false)
-        );
+        let _ = decoder.decode(sub_slice, Some(0), Some(0), false);
     }
 
-    let frame1 = decoder.flush().unwrap();
+    let frame1 = decoder.flush()?;
     println!("{frame1}");
-    let plane = frame1.plane(0).unwrap();
+    let plane = frame1.plane(PlaneComponent::Y);
     println!("plane 0: {} len {}", plane, plane.len());
-    let plane = frame1.plane(1).unwrap();
+    let plane = frame1.plane(PlaneComponent::U);
     println!("plane 1: {} len {}", plane, plane.len());
-    let plane = frame1.plane(2).unwrap();
+    let plane = frame1.plane(PlaneComponent::V);
     println!("plane 2: {} len {}", plane, plane.len());
 
-    let frame2 = decoder.flush().unwrap();
+    let frame2 = decoder.flush()?;
     println!("{frame2}");
 
-    let frame3 = decoder.flush().unwrap();
+    let frame3 = decoder.flush()?;
     println!("{frame3}");
 
     assert_matches!(decoder.flush(), Err(Error::Eof));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));
+
+    Ok(())
 }

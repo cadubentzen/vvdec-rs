@@ -5,7 +5,7 @@ use std::{
 };
 
 use clap::Parser;
-use vvdec::{ColorFormat, Decoder, Error, Frame, Params};
+use vvdec::{ColorFormat, Decoder, Error, Frame, Params, PlaneComponent};
 use y4m::{Colorspace, Encoder};
 
 #[derive(Parser)]
@@ -53,9 +53,9 @@ fn main() -> anyhow::Result<()> {
     let mut y4m_encoder = create_y4m_encoder(&first_frame, writer)?;
     y4m_encoder.write_frame(&y4m::Frame::new(
         [
-            first_frame.plane(0).unwrap().as_ref(),
-            first_frame.plane(1).unwrap().as_ref(),
-            first_frame.plane(2).unwrap().as_ref(),
+            first_frame.plane(PlaneComponent::Y).as_ref(),
+            first_frame.plane(PlaneComponent::U).as_ref(),
+            first_frame.plane(PlaneComponent::V).as_ref(),
         ],
         None,
     ))?;
@@ -65,9 +65,9 @@ fn main() -> anyhow::Result<()> {
             Ok(frame) => {
                 y4m_encoder.write_frame(&y4m::Frame::new(
                     [
-                        frame.plane(0).unwrap().as_ref(),
-                        frame.plane(1).unwrap().as_ref(),
-                        frame.plane(2).unwrap().as_ref(),
+                        frame.plane(PlaneComponent::Y).as_ref(),
+                        frame.plane(PlaneComponent::U).as_ref(),
+                        frame.plane(PlaneComponent::V).as_ref(),
                     ],
                     None,
                 ))?;

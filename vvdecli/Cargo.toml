@@ -1,6 +1,6 @@
 [package]
 name = "vvdecli"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 description = "CLI application for decoding VVC bitstreams"
@@ -11,7 +11,7 @@ exclude = ["tests/"]
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-vvdec = { path = "..", version = "0.0.4" }
+vvdec = { path = "..", version = "0.0.5" }
 y4m = "0.8"
 
 [dev-dependencies]

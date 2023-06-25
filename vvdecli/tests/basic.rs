@@ -8,7 +8,7 @@ fn basic() {
     // 2. PSNR on the decoded output or plain hash checking
     Command::cargo_bin("vvdecli")
         .unwrap()
-        .args(&["-i", "../tests/short.vvc", "-o", "/tmp/decoded.y4m"])
+        .args(["-i", "../tests/short.vvc", "-o", "/tmp/decoded.y4m"])
         .assert()
         .success();
 }

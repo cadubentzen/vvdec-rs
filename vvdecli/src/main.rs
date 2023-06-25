@@ -40,7 +40,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut y4m_encoder = None;
     while let Some(chunk) = chunked_reader.next_chunk()? {
-        match decoder.decode(&chunk, None, None, false) {
+        match decoder.decode(chunk, None, None, false) {
             Ok(Some(frame)) => {
                 let y4m_encoder = y4m_encoder.get_or_insert_with(|| {
                     let writer = std::mem::replace(&mut writer, Box::new(std::io::sink()));
@@ -130,6 +130,6 @@ impl<R: Read> ChunkedReader<R> {
     // TODO: properly implement chunking here
     fn next_chunk(&mut self) -> anyhow::Result<Option<&[u8]>> {
         let num_read = self.reader.read_to_end(&mut self.buffer)?;
-        Ok((num_read > 0).then_some(&mut self.buffer))
+        Ok((num_read > 0).then_some(&self.buffer))
     }
 }

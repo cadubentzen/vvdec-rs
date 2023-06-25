@@ -25,52 +25,42 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let mut reader: BufReader<Box<dyn Read>> =
-        BufReader::new(cli.input.map_or(Box::new(std::io::stdin()), |i| {
-            Box::new(File::open(i).expect("could not open input file"))
-        }));
+    let reader: Box<dyn Read> = cli.input.map_or(Box::new(std::io::stdin()), |i| {
+        Box::new(File::open(i).expect("could not open input file"))
+    });
 
-    let writer: Box<dyn Write> = cli.output.map_or(Box::new(std::io::stdout()), |o| {
+    let mut writer: Box<dyn Write> = cli.output.map_or(Box::new(std::io::stdout()), |o| {
         Box::new(File::create(o).expect("could not open output file"))
     });
 
-    let mut input_buffer = Vec::new();
-
-    // TODO: implement chunked reading on Annex-B start codes
-    reader.read_to_end(&mut input_buffer)?;
-
+    let mut chunked_reader = ChunkedReader::new(reader);
     let mut params = Params::new();
     params.set_remove_padding(true);
     let mut decoder = Decoder::with_params(params).expect("could not open decoder");
 
-    let first_frame = match decoder.decode(&input_buffer, None, None, false) {
-        Ok(some_frame) => some_frame,
-        Err(Error::TryAgain) => None,
-        Err(err) => return Err(err.into()),
-    };
-
-    let first_frame = first_frame.unwrap_or_else(|| decoder.flush().unwrap());
-    let mut y4m_encoder = create_y4m_encoder(&first_frame, writer)?;
-    y4m_encoder.write_frame(&y4m::Frame::new(
-        [
-            first_frame.plane(PlaneComponent::Y).as_ref(),
-            first_frame.plane(PlaneComponent::U).as_ref(),
-            first_frame.plane(PlaneComponent::V).as_ref(),
-        ],
-        None,
-    ))?;
+    let mut y4m_encoder = None;
+    while let Some(chunk) = chunked_reader.next_chunk()? {
+        match decoder.decode(&chunk, None, None, false) {
+            Ok(Some(frame)) => {
+                let y4m_encoder = y4m_encoder.get_or_insert_with(|| {
+                    let writer = std::mem::replace(&mut writer, Box::new(std::io::sink()));
+                    create_y4m_encoder(&frame, writer).expect("could not create y4m encoder")
+                });
+                write_frame(y4m_encoder, frame)?;
+            }
+            Ok(None) | Err(Error::TryAgain) => {}
+            Err(err) => return Err(err.into()),
+        }
+    }
 
     loop {
         match decoder.flush() {
             Ok(frame) => {
-                y4m_encoder.write_frame(&y4m::Frame::new(
-                    [
-                        frame.plane(PlaneComponent::Y).as_ref(),
-                        frame.plane(PlaneComponent::U).as_ref(),
-                        frame.plane(PlaneComponent::V).as_ref(),
-                    ],
-                    None,
-                ))?;
+                let y4m_encoder = y4m_encoder.get_or_insert_with(|| {
+                    let writer = std::mem::replace(&mut writer, Box::new(std::io::sink()));
+                    create_y4m_encoder(&frame, writer).expect("could not create y4m encoder")
+                });
+                write_frame(y4m_encoder, frame)?;
             }
             Err(Error::Eof) => break,
             Err(err) => return Err(err.into()),
@@ -109,5 +99,37 @@ fn convert_colorspace(color_format: ColorFormat, bit_depth: u32) -> Colorspace {
             ColorFormat::Yuv444Planar => Colorspace::C444,
             _ => unimplemented!(),
         }
+    }
+}
+
+fn write_frame(encoder: &mut y4m::Encoder<impl Write>, frame: Frame) -> anyhow::Result<()> {
+    encoder.write_frame(&y4m::Frame::new(
+        [
+            frame.plane(PlaneComponent::Y).as_ref(),
+            frame.plane(PlaneComponent::U).as_ref(),
+            frame.plane(PlaneComponent::V).as_ref(),
+        ],
+        None,
+    ))?;
+    Ok(())
+}
+
+struct ChunkedReader<R: Read> {
+    reader: BufReader<R>,
+    buffer: Vec<u8>,
+}
+
+impl<R: Read> ChunkedReader<R> {
+    fn new(reader: R) -> Self {
+        Self {
+            reader: BufReader::new(reader),
+            buffer: Vec::new(),
+        }
+    }
+
+    // TODO: properly implement chunking here
+    fn next_chunk(&mut self) -> anyhow::Result<Option<&[u8]>> {
+        let num_read = self.reader.read_to_end(&mut self.buffer)?;
+        Ok((num_read > 0).then_some(&mut self.buffer))
     }
 }

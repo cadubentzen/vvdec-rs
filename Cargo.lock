@@ -565,6 +565,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
+ "thiserror",
  "vvdec",
  "y4m",
 ]

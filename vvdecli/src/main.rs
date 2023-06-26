@@ -1,12 +1,11 @@
-use std::{
-    fs::File,
-    io::{BufReader, Read, Write},
-    path::PathBuf,
-};
+use std::{fs::File, io::Read, io::Write, path::PathBuf};
 
 use clap::Parser;
 use vvdec::{ColorFormat, Decoder, Error, Frame, Params, PlaneComponent};
 use y4m::{Colorspace, Encoder};
+
+mod chunked_reader;
+use chunked_reader::ChunkedReader;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -112,24 +111,4 @@ fn write_frame(encoder: &mut y4m::Encoder<impl Write>, frame: Frame) -> anyhow::
         None,
     ))?;
     Ok(())
-}
-
-struct ChunkedReader<R: Read> {
-    reader: BufReader<R>,
-    buffer: Vec<u8>,
-}
-
-impl<R: Read> ChunkedReader<R> {
-    fn new(reader: R) -> Self {
-        Self {
-            reader: BufReader::new(reader),
-            buffer: Vec::new(),
-        }
-    }
-
-    // TODO: properly implement chunking here
-    fn next_chunk(&mut self) -> anyhow::Result<Option<&[u8]>> {
-        let num_read = self.reader.read_to_end(&mut self.buffer)?;
-        Ok((num_read > 0).then_some(&self.buffer))
-    }
 }

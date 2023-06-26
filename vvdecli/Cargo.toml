@@ -1,6 +1,6 @@
 [package]
 name = "vvdecli"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 description = "CLI application for decoding VVC bitstreams"

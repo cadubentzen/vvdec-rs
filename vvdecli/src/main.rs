@@ -19,8 +19,6 @@ struct Cli {
     output: Option<PathBuf>,
 }
 
-// const INPUT_BUFFER_SIZE: usize = 8 * 1024 * 1024;
-
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 

@@ -29,7 +29,6 @@ impl<R: Read> ChunkedReader<R> {
         Self::custom(reader, DEFAULT_PAGE_SIZE, DEFAULT_MAX_BUFFER_SIZE)
     }
 
-    // TODO: properly implement chunking here
     pub fn next_chunk(&mut self) -> Result<Option<&[u8]>, ChunkedError> {
         if self.next_start > 0 {
             self.buffer.copy_within(self.next_start..self.end, 0);

@@ -65,7 +65,9 @@ impl ElementImpl for VVdeC {
 
     fn pad_templates() -> &'static [gst::PadTemplate] {
         static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
-            let sink_caps = gst::Caps::builder("video/x-h266").build();
+            let sink_caps = gst::Caps::builder("video/x-h266")
+                .field("stream-format", "byte-stream")
+                .build();
             let sink_pad_template = gst::PadTemplate::new(
                 "sink",
                 gst::PadDirection::Sink,

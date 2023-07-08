@@ -1,0 +1,40 @@
+[package]
+name = "gst-plugin-vvdec"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.66"
+authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
+repository = "https://github.com/cadubentzen/vvdec-rs"
+license = "BSD-3-Clause-Clear"
+description = "GStreamer VVdeC decoder plugin"
+
+[dependencies]
+vvdec = { path = "..", version = "0.0.5" }
+gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
+gst-base = { package = "gstreamer-base", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
+gst-video = { package = "gstreamer-video", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
+once_cell = "1.18"
+
+[lib]
+name = "gstvvdec"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+gst-plugin-version-helper = { package = "gst-plugin-version-helper", git = "https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs" }
+
+[features]
+capi = []
+
+[package.metadata.capi]
+min_version = "0.8.0"
+
+[package.metadata.capi.header]
+enabled = false
+
+[package.metadata.capi.library]
+install_subdir = "gstreamer-1.0"
+versioning = false
+
+[package.metadata.capi.pkg_config]
+requires_private = "gstreamer-1.0, gstreamer-base-1.0, gstreamer-video-1.0, gobject-2.0, glib-2.0, gmodule-2.0, libvvdec"

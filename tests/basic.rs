@@ -40,10 +40,7 @@ fn basic() -> Result<(), Error> {
     Ok(())
 }
 
-#[test]
-fn split_data() -> Result<(), Error> {
-    let mut decoder = Decoder::new().unwrap();
-
+fn split_data(data: &[u8]) -> Vec<&[u8]> {
     const ANNEX_B_START_CODE: &[u8] = &[0, 0, 0, 1];
     let mut indices: Vec<_> = DATA
         .windows(4)
@@ -52,9 +49,19 @@ fn split_data() -> Result<(), Error> {
         .map(|(i, _)| i)
         .collect();
     indices.push(DATA.len());
-    for pair in indices.windows(2) {
-        let sub_slice = &DATA[pair[0]..pair[1]];
-        let _ = decoder.decode(sub_slice, Some(0), Some(0), false);
+
+    indices
+        .windows(2)
+        .map(|pair| &data[pair[0]..pair[1]])
+        .collect()
+}
+
+#[test]
+fn test_split_data() -> Result<(), Error> {
+    let mut decoder = Decoder::new().unwrap();
+
+    for slice in split_data(DATA) {
+        let _ = decoder.decode(slice, Some(0), Some(0), false);
     }
 
     let frame1 = decoder.flush()?;
@@ -74,6 +81,57 @@ fn split_data() -> Result<(), Error> {
 
     assert_matches!(decoder.flush(), Err(Error::Eof));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));
+
+    Ok(())
+}
+
+#[test]
+fn test_decode_after_flush() -> Result<(), Error> {
+    let mut decoder = Decoder::new().unwrap();
+
+    let mut slices = split_data(DATA).into_iter();
+    let sps = slices.next().unwrap();
+    let pps = slices.next().unwrap();
+    let frame1 = slices.next().unwrap();
+    let frame2 = slices.next().unwrap();
+    let frame3 = slices.next().unwrap();
+
+    let _ = decoder.decode(sps, None, None, false);
+    let _ = decoder.decode(pps, None, None, false);
+    let _ = decoder.decode(frame1, None, None, false);
+    let _ = decoder.decode(frame2, None, None, false);
+
+    assert!(decoder.flush().is_ok());
+    assert!(decoder.flush().is_ok());
+    assert_eq!(decoder.flush().unwrap_err(), Error::Eof);
+
+    let _ = decoder.decode(sps, None, None, false);
+    let _ = decoder.decode(pps, None, None, false);
+    let _ = decoder.decode(frame1, None, None, false);
+    let _ = decoder.decode(frame2, None, None, false);
+    let _ = decoder.decode(frame3, None, None, false);
+    assert!(decoder.flush().is_ok());
+    assert!(decoder.flush().is_ok());
+    assert!(decoder.flush().is_ok());
+    assert_eq!(decoder.flush().unwrap_err(), Error::Eof);
+
+    Ok(())
+}
+
+#[test]
+fn test_change_resolution() -> Result<(), Error> {
+    let mut decoder = Decoder::new().unwrap();
+
+    let _ = decoder.decode(DATA, None, None, false);
+    let first_frame = decoder.flush().unwrap();
+    assert_eq!(first_frame.width(), 320);
+    assert_eq!(first_frame.height(), 240);
+
+    const SECOND_DATA: &[u8] = include_bytes!("../tests/short2.vvc");
+    let _ = decoder.decode(SECOND_DATA, None, None, false);
+    let first_frame = decoder.flush().unwrap();
+    assert_eq!(first_frame.width(), 160);
+    assert_eq!(first_frame.height(), 120);
 
     Ok(())
 }

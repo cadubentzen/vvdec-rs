@@ -488,6 +488,12 @@ impl VideoDecoderImpl for VVdeC {
                 state.video_meta_supported = query
                     .find_allocation_meta::<gst_video::VideoMeta>()
                     .is_some();
+                gst::trace!(
+                    CAT,
+                    imp: self,
+                    "Video meta support: {}",
+                    state.video_meta_supported
+                );
             }
         }
 

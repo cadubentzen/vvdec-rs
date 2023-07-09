@@ -6,10 +6,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use gst::glib;
-use gst::prelude::*;
 use gst::subclass::prelude::*;
 use gst_video::prelude::*;
 use gst_video::subclass::prelude::*;
@@ -35,12 +34,16 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     )
 });
 
+type StateGuard<'s> = MutexGuard<'s, Option<State>>;
+
 impl VVdeC {
-    fn decode(
-        &self,
-        state: &mut State,
+    fn decode<'s>(
+        &'s self,
+        mut state_guard: StateGuard,
         input_buffer: gst::Buffer,
-    ) -> Result<Option<vvdec::Frame>, gst::FlowError> {
+    ) -> Result<(), gst::FlowError> {
+        let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
+
         let cts = input_buffer.pts().map(|ts| *ts as u64);
         let dts = input_buffer.dts().map(|ts| *ts as u64);
 
@@ -49,20 +52,24 @@ impl VVdeC {
             .map_err(|_| gst::FlowError::Error)?;
 
         match state.decoder.decode(input_data, cts, dts, false) {
-            Ok(maybe_frame) => Ok(maybe_frame),
-            Err(vvdec::Error::TryAgain) => Ok(None),
+            Ok(Some(frame)) => {
+                drop(self.handle_decoded_frame(state_guard, &frame)?);
+            }
+            Ok(None) | Err(vvdec::Error::TryAgain) => (),
             Err(err) => {
                 gst::warning!(CAT, imp: self, "decoder returned {:?}", err);
-                Err(gst::FlowError::Error)
+                return Err(gst::FlowError::Error);
             }
         }
+
+        Ok(())
     }
 
-    fn handle_decoded_frame(
-        &self,
-        state: &mut State,
+    fn handle_decoded_frame<'s>(
+        &'s self,
+        state_guard: StateGuard<'s>,
         decoded_frame: &vvdec::Frame,
-    ) -> Result<(), gst::FlowError> {
+    ) -> Result<StateGuard, gst::FlowError> {
         gst::trace!(
             CAT,
             imp: self,
@@ -70,7 +77,8 @@ impl VVdeC {
             decoded_frame.sequence_number()
         );
 
-        self.handle_resolution_changes(state, decoded_frame)?;
+        let mut state_guard = self.handle_resolution_changes(state_guard, decoded_frame)?;
+        let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
 
         let instance = self.obj();
         let output_state = instance
@@ -86,19 +94,20 @@ impl VVdeC {
         } else {
             gst::warning!(CAT, imp: self, "No frame found for offset {offset}");
         }
-        Ok(())
+        Ok(state_guard)
     }
 
-    fn handle_resolution_changes(
-        &self,
-        state: &mut State,
+    fn handle_resolution_changes<'s>(
+        &'s self,
+        mut state_guard: StateGuard<'s>,
         frame: &vvdec::Frame,
-    ) -> Result<(), gst::FlowError> {
+    ) -> Result<StateGuard<'s>, gst::FlowError> {
         let format = self.gst_video_format_from_vvdec_frame(frame);
         if format == gst_video::VideoFormat::Unknown {
             return Err(gst::FlowError::NotNegotiated);
         }
 
+        let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
         let need_negotiate = {
             match state.output_info {
                 Some(ref i) => {
@@ -109,7 +118,7 @@ impl VVdeC {
             }
         };
         if !need_negotiate {
-            return Ok(());
+            return Ok(state_guard);
         }
 
         gst::info!(
@@ -122,16 +131,24 @@ impl VVdeC {
         );
 
         let input_state = state.input_state.clone();
+        drop(state_guard);
 
-        // TODO: check if state mutex needs to be released in this region
+        // The mutex needs to have been dropped in this portion, because it will
+        // trigger a `decide_allocation` call which also needs to lock the mutex.
+        // Not dropping the mutex would otherwise dead-lock.
         let instance = self.obj();
         let output_state =
             instance.set_output_state(format, frame.width(), frame.height(), Some(&input_state))?;
         instance.negotiate(output_state)?;
         let out_state = instance.output_state().unwrap();
 
+        let mut state_guard = self.state.lock().unwrap();
+        let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
         state.output_info = Some(out_state.info());
-        Ok(())
+
+        gst::trace!(CAT, imp: self, "Negotiated format");
+
+        Ok(state_guard)
     }
 
     fn gst_video_format_from_vvdec_frame(&self, frame: &vvdec::Frame) -> gst_video::VideoFormat {
@@ -169,10 +186,14 @@ impl VVdeC {
             })
     }
 
-    fn forward_pending_frames(&self, state: &mut State) -> Result<(), gst::FlowError> {
+    fn forward_pending_frames<'s>(
+        &'s self,
+        mut state_guard: StateGuard<'s>,
+    ) -> Result<(), gst::FlowError> {
         loop {
+            let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
             match state.decoder.flush() {
-                Ok(frame) => self.handle_decoded_frame(state, &frame)?,
+                Ok(frame) => state_guard = self.handle_decoded_frame(state_guard, &frame)?,
                 Err(vvdec::Error::Eof) => return Ok(()),
                 Err(err) => {
                     gst::warning!(
@@ -398,11 +419,8 @@ impl VideoDecoderImpl for VVdeC {
             .expect("frame without input buffer");
 
         {
-            let mut state_guard = self.state.lock().unwrap();
-            let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
-            if let Some(decoded_frame) = self.decode(state, input_buffer)? {
-                self.handle_decoded_frame(state, &decoded_frame)?;
-            }
+            let state_guard = self.state.lock().unwrap();
+            self.decode(state_guard, input_buffer)?;
         }
 
         Ok(gst::FlowSuccess::Ok)
@@ -424,8 +442,8 @@ impl VideoDecoderImpl for VVdeC {
 
         {
             let mut state_guard = self.state.lock().unwrap();
-            if let Some(state) = state_guard.as_mut() {
-                self.forward_pending_frames(state)?;
+            if state_guard.as_mut().is_some() {
+                self.forward_pending_frames(state_guard)?;
             }
         }
 
@@ -437,8 +455,8 @@ impl VideoDecoderImpl for VVdeC {
 
         {
             let mut state_guard = self.state.lock().unwrap();
-            if let Some(state) = state_guard.as_mut() {
-                self.forward_pending_frames(state)?;
+            if state_guard.as_mut().is_some() {
+                self.forward_pending_frames(state_guard)?;
             }
         }
 
@@ -462,6 +480,8 @@ impl VideoDecoderImpl for VVdeC {
         &self,
         query: &mut gst::query::Allocation,
     ) -> Result<(), gst::LoggableError> {
+        gst::trace!(CAT, imp: self, "Deciding allocation");
+
         {
             let mut state_guard = self.state.lock().unwrap();
             if let Some(state) = state_guard.as_mut() {

@@ -18,6 +18,8 @@ use once_cell::sync::Lazy;
 struct State {
     decoder: vvdec::Decoder,
     video_meta_supported: bool,
+    output_info: Option<gst_video::VideoInfo>,
+    input_state: gst_video::VideoCodecState<'static, gst_video::video_codec_state::Readable>,
 }
 
 #[derive(Default)]
@@ -46,14 +48,14 @@ impl VVdeC {
             .into_mapped_buffer_readable()
             .map_err(|_| gst::FlowError::Error)?;
 
-        // FIXME: handle TryAgain case
-        state
-            .decoder
-            .decode(input_data, cts, dts, false)
-            .map_err(|err| {
+        match state.decoder.decode(input_data, cts, dts, false) {
+            Ok(maybe_frame) => Ok(maybe_frame),
+            Err(vvdec::Error::TryAgain) => Ok(None),
+            Err(err) => {
                 gst::warning!(CAT, imp: self, "decoder returned {:?}", err);
-                gst::FlowError::Error
-            })
+                Err(gst::FlowError::Error)
+            }
+        }
     }
 
     fn handle_decoded_frame(
@@ -61,13 +63,14 @@ impl VVdeC {
         state: &mut State,
         decoded_frame: &vvdec::Frame,
     ) -> Result<(), gst::FlowError> {
-        // TODO: handle resolution changes
         gst::trace!(
             CAT,
             imp: self,
             "Handling decoded frame {}",
             decoded_frame.sequence_number()
         );
+
+        self.handle_resolution_changes(state, decoded_frame)?;
 
         let instance = self.obj();
         let output_state = instance
@@ -77,7 +80,7 @@ impl VVdeC {
 
         let frame = instance.frame(offset);
         if let Some(mut frame) = frame {
-            let output_buffer = self.decoded_frame_as_buffer(decoded_frame)?;
+            let output_buffer = self.decoded_frame_as_buffer(state, decoded_frame, output_state)?;
             frame.set_output_buffer(output_buffer);
             instance.finish_frame(frame)?;
         } else {
@@ -86,8 +89,101 @@ impl VVdeC {
         Ok(())
     }
 
+    fn handle_resolution_changes(
+        &self,
+        state: &mut State,
+        frame: &vvdec::Frame,
+    ) -> Result<(), gst::FlowError> {
+        let format = self.gst_video_format_from_vvdec_frame(frame);
+        if format == gst_video::VideoFormat::Unknown {
+            return Err(gst::FlowError::NotNegotiated);
+        }
+
+        let need_negotiate = {
+            match state.output_info {
+                Some(ref i) => {
+                    (i.width() != frame.width())
+                        || (i.height() != frame.height() || (i.format() != format))
+                }
+                None => true,
+            }
+        };
+        if !need_negotiate {
+            return Ok(());
+        }
+
+        gst::info!(
+            CAT,
+            imp: self,
+            "Negotiating format {:?} frame dimensions {}x{}",
+            format,
+            frame.width(),
+            frame.height()
+        );
+
+        let input_state = state.input_state.clone();
+
+        // TODO: check if state mutex needs to be released in this region
+        let instance = self.obj();
+        let output_state =
+            instance.set_output_state(format, frame.width(), frame.height(), Some(&input_state))?;
+        instance.negotiate(output_state)?;
+        let out_state = instance.output_state().unwrap();
+
+        state.output_info = Some(out_state.info());
+        Ok(())
+    }
+
+    fn gst_video_format_from_vvdec_frame(&self, frame: &vvdec::Frame) -> gst_video::VideoFormat {
+        let color_format = frame.color_format();
+        let bit_depth = frame.bit_depth();
+
+        let format_desc = match (&color_format, bit_depth) {
+            (vvdec::ColorFormat::Yuv400Planar, _) => todo!("implement grayscale"),
+            (vvdec::ColorFormat::Yuv420Planar, 8) => "I420",
+            (vvdec::ColorFormat::Yuv422Planar, 8) => "Y42B",
+            (vvdec::ColorFormat::Yuv444Planar, 8) => "Y444",
+            #[cfg(target_endian = "little")]
+            (vvdec::ColorFormat::Yuv420Planar, 10) => "I420_10LE",
+            #[cfg(target_endian = "little")]
+            (vvdec::ColorFormat::Yuv422Planar, 10) => "I422_10LE",
+            #[cfg(target_endian = "little")]
+            (vvdec::ColorFormat::Yuv444Planar, 10) => "Y444_10LE",
+            _ => {
+                gst::warning!(
+                    CAT,
+                    imp: self,
+                    "Unsupported VVdeC format {:?}/{:?}",
+                    color_format,
+                    bit_depth
+                );
+                return gst_video::VideoFormat::Unknown;
+            }
+        };
+
+        format_desc
+            .parse::<gst_video::VideoFormat>()
+            .unwrap_or_else(|_| {
+                gst::warning!(CAT, imp: self, "Unsupported VVdeC format: {}", format_desc);
+                gst_video::VideoFormat::Unknown
+            })
+    }
+
     fn forward_pending_frames(&self, state: &mut State) -> Result<(), gst::FlowError> {
-        todo!()
+        loop {
+            match state.decoder.flush() {
+                Ok(frame) => self.handle_decoded_frame(state, &frame)?,
+                Err(vvdec::Error::Eof) => return Ok(()),
+                Err(err) => {
+                    gst::warning!(
+                        CAT,
+                        imp: self,
+                        "Decoder returned error while flushing: {err}"
+                    );
+                    return Err(gst::FlowError::Error);
+                }
+            }
+        }
     }
 
     fn flush_decoder(&self, state: &mut State) {
@@ -98,7 +194,7 @@ impl VVdeC {
                 Err(err) => {
                     gst::warning!(CAT, imp: self, "Error when flushing: {err}");
                     // FIXME: will the decoder recover after pushing more frames here or
-                    // would need to reinitialize it?
+                    // would we need to reinitialize it?
                     break;
                 }
             }
@@ -107,13 +203,86 @@ impl VVdeC {
 
     fn decoded_frame_as_buffer(
         &self,
-        decoded_frame: &vvdec::Frame,
+        state: &mut State,
+        frame: &vvdec::Frame,
+        output_state: gst_video::VideoCodecState<gst_video::video_codec_state::Readable>,
     ) -> Result<gst::Buffer, gst::FlowError> {
-        todo!()
+        let video_meta_supported = state.video_meta_supported;
+
+        let mut out_buffer = gst::Buffer::new();
+        let mut_buffer = out_buffer.get_mut().unwrap();
+
+        let info = output_state.info();
+        // TODO: implement grayscale
+        let components = [
+            vvdec::PlaneComponent::Y,
+            vvdec::PlaneComponent::U,
+            vvdec::PlaneComponent::V,
+        ];
+
+        let mut offsets = vec![];
+        let mut strides = vec![];
+        let mut acc_offset: usize = 0;
+
+        for component in components {
+            let dest_stride: u32 = info.stride()[component as usize].try_into().unwrap();
+            let plane = frame.plane(component);
+            let src_stride = plane.stride();
+            let mem = if video_meta_supported || dest_stride == src_stride {
+                gst::Memory::from_slice(plane)
+            } else {
+                gst::trace!(
+                    gst::CAT_PERFORMANCE,
+                    imp: self,
+                    "Copying decoded video frame component {:?}",
+                    component
+                );
+
+                let src_slice = plane.as_ref();
+                let height = plane.height();
+                let mem = gst::Memory::with_size((dest_stride * height) as usize);
+                let mut writable_mem = mem
+                    .into_mapped_memory_writable()
+                    .map_err(|_| gst::FlowError::Error)?;
+                let chunk_len = std::cmp::min(src_stride, dest_stride) as usize;
+
+                for (out_line, in_line) in writable_mem
+                    .as_mut_slice()
+                    .chunks_exact_mut(dest_stride.try_into().unwrap())
+                    .zip(src_slice.chunks_exact(src_stride.try_into().unwrap()))
+                {
+                    out_line.copy_from_slice(&in_line[..chunk_len]);
+                }
+
+                writable_mem.into_memory()
+            };
+            let mem_size = mem.size();
+            mut_buffer.append_memory(mem);
+
+            strides.push(src_stride as i32);
+            offsets.push(acc_offset);
+            acc_offset += mem_size;
+        }
+
+        if video_meta_supported {
+            gst_video::VideoMeta::add_full(
+                out_buffer.get_mut().unwrap(),
+                gst_video::VideoFrameFlags::empty(),
+                info.format(),
+                info.width(),
+                info.height(),
+                &offsets,
+                &strides[..],
+            )
+            .unwrap();
+        }
+
+        Ok(out_buffer)
     }
 }
 
 fn video_output_formats() -> impl IntoIterator<Item = gst_video::VideoFormat> {
+    // TODO: implement grayscale
     [
         gst_video::VideoFormat::I420,
         gst_video::VideoFormat::Y42b,
@@ -206,6 +375,8 @@ impl VideoDecoderImpl for VVdeC {
         *state_guard = Some(State {
             decoder,
             video_meta_supported: false,
+            output_info: None,
+            input_state: input_state.clone(),
         });
 
         self.parent_set_format(input_state)

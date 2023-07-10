@@ -199,7 +199,7 @@ impl VVdeC {
             let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
             match state.decoder.flush() {
                 Ok(frame) => state_guard = self.handle_decoded_frame(state_guard, &frame)?,
-                Err(vvdec::Error::Eof) => return Ok(()),
+                Err(vvdec::Error::Eof) | Err(vvdec::Error::RestartRequired) => return Ok(()),
                 Err(err) => {
                     gst::warning!(
                         CAT,
@@ -216,11 +216,13 @@ impl VVdeC {
         loop {
             match state.decoder.flush() {
                 Ok(_) => (),
-                Err(vvdec::Error::Eof) => break,
+                Err(vvdec::Error::Eof) | Err(vvdec::Error::RestartRequired) => break,
                 Err(err) => {
-                    gst::warning!(CAT, imp: self, "Error when flushing: {err}");
-                    // FIXME: will the decoder recover after pushing more frames here or
-                    // would we need to reinitialize it?
+                    gst::warning!(
+                        CAT,
+                        imp: self,
+                        "Decoder returned error while flushing: {err}"
+                    );
                     break;
                 }
             }

@@ -46,6 +46,7 @@ impl VVdeC {
 
         let cts = input_buffer.pts().map(|ts| *ts as u64);
         let dts = input_buffer.dts().map(|ts| *ts as u64);
+        let offset = input_buffer.offset();
 
         let input_data = input_buffer
             .into_mapped_buffer_readable()
@@ -56,6 +57,14 @@ impl VVdeC {
                 drop(self.handle_decoded_frame(state_guard, &frame)?);
             }
             Ok(None) | Err(vvdec::Error::TryAgain) => (),
+            Err(vvdec::Error::DecInput) => {
+                gst::warning!(
+                    CAT,
+                    imp: self,
+                    "Dropping frame {} because it's undecodable",
+                    offset
+                );
+            }
             Err(err) => {
                 gst::warning!(CAT, imp: self, "decoder returned {:?}", err);
                 return Err(gst::FlowError::Error);

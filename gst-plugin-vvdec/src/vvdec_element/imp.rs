@@ -90,11 +90,16 @@ impl VVdeC {
         if let Some(mut frame) = frame {
             let output_buffer = self.decoded_frame_as_buffer(state, decoded_frame, output_state)?;
             frame.set_output_buffer(output_buffer);
+            drop(state_guard);
+            // finish_frame may trigger another decide_allocation call which locks the mutex,
+            // so we need to drop the guard in this portion.
             instance.finish_frame(frame)?;
+            gst::trace!(CAT, imp: self, "Finished frame {offset}");
+            Ok(self.state.lock().unwrap())
         } else {
             gst::warning!(CAT, imp: self, "No frame found for offset {offset}");
+            Ok(state_guard)
         }
-        Ok(state_guard)
     }
 
     fn handle_resolution_changes<'s>(

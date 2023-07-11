@@ -41,18 +41,18 @@ impl VVdeC {
         &'s self,
         mut state_guard: StateGuard,
         input_buffer: gst::Buffer,
+        frame: gst_video::VideoCodecFrame,
     ) -> Result<(), gst::FlowError> {
         let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
 
-        let cts = input_buffer.pts().map(|ts| *ts as u64);
+        let offset = Some(frame.system_frame_number() as u64);
         let dts = input_buffer.dts().map(|ts| *ts as u64);
-        let offset = input_buffer.offset();
 
         let input_data = input_buffer
             .into_mapped_buffer_readable()
             .map_err(|_| gst::FlowError::Error)?;
 
-        match state.decoder.decode(input_data, cts, dts, false) {
+        match state.decoder.decode(input_data, offset, dts, false) {
             Ok(Some(frame)) => {
                 drop(self.handle_decoded_frame(state_guard, &frame)?);
             }
@@ -62,7 +62,7 @@ impl VVdeC {
                     CAT,
                     imp: self,
                     "Dropping frame {} because it's undecodable",
-                    offset
+                    offset.unwrap()
                 );
             }
             Err(err) => {
@@ -79,12 +79,8 @@ impl VVdeC {
         state_guard: StateGuard<'s>,
         decoded_frame: &vvdec::Frame,
     ) -> Result<StateGuard, gst::FlowError> {
-        gst::trace!(
-            CAT,
-            imp: self,
-            "Handling decoded frame {}",
-            decoded_frame.sequence_number()
-        );
+        let offset = decoded_frame.cts().unwrap();
+        gst::trace!(CAT, imp: self, "Handling decoded frame {}", offset);
 
         let mut state_guard = self.handle_resolution_changes(state_guard, decoded_frame)?;
         let state = state_guard.as_mut().ok_or(gst::FlowError::Flushing)?;
@@ -93,9 +89,8 @@ impl VVdeC {
         let output_state = instance
             .output_state()
             .expect("Output state not set. Shouldn't happen!");
-        let offset = decoded_frame.sequence_number() as i32;
 
-        let frame = instance.frame(offset);
+        let frame = instance.frame(offset.try_into().unwrap());
         if let Some(mut frame) = frame {
             let output_buffer = self.decoded_frame_as_buffer(state, decoded_frame, output_state)?;
             frame.set_output_buffer(output_buffer);
@@ -221,21 +216,13 @@ impl VVdeC {
         }
     }
 
-    fn flush_decoder(&self, state: &mut State) {
-        loop {
-            match state.decoder.flush() {
-                Ok(_) => (),
-                Err(vvdec::Error::Eof) | Err(vvdec::Error::RestartRequired) => break,
-                Err(err) => {
-                    gst::warning!(
-                        CAT,
-                        imp: self,
-                        "Decoder returned error while flushing: {err}"
-                    );
-                    break;
-                }
-            }
-        }
+    fn flush_decoder(&self, state: &mut State) -> bool {
+        let Some(decoder) = vvdec::Decoder::new() else {
+            gst::error!(CAT, imp: self, "Failed to create new encoder instance");
+            return false;
+        };
+        state.decoder = decoder;
+        true
     }
 
     fn decoded_frame_as_buffer(
@@ -423,12 +410,8 @@ impl VideoDecoderImpl for VVdeC {
         &self,
         frame: gst_video::VideoCodecFrame,
     ) -> Result<gst::FlowSuccess, gst::FlowError> {
-        gst::trace!(
-            CAT,
-            imp: self,
-            "Decoding frame {}",
-            frame.system_frame_number()
-        );
+        let offset = frame.system_frame_number();
+        gst::trace!(CAT, imp: self, "Decoding frame {}", offset);
 
         let input_buffer = frame
             .input_buffer_owned()
@@ -436,8 +419,21 @@ impl VideoDecoderImpl for VVdeC {
 
         {
             let state_guard = self.state.lock().unwrap();
-            self.decode(state_guard, input_buffer)?;
+            gst::trace!(
+                CAT,
+                imp: self,
+                "Lock acquired for decoding frame {}",
+                offset
+            );
+            self.decode(state_guard, input_buffer, frame)?;
         }
+
+        gst::trace!(
+            CAT,
+            imp: self,
+            "Lock released for decoding frame {}",
+            offset
+        );
 
         Ok(gst::FlowSuccess::Ok)
     }
@@ -485,7 +481,7 @@ impl VideoDecoderImpl for VVdeC {
         {
             let mut state_guard = self.state.lock().unwrap();
             if let Some(state) = state_guard.as_mut() {
-                self.flush_decoder(state);
+                return self.flush_decoder(state);
             }
         }
 

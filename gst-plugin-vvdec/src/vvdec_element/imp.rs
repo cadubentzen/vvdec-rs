@@ -58,12 +58,14 @@ impl VVdeC {
             }
             Ok(None) | Err(vvdec::Error::TryAgain) => (),
             Err(vvdec::Error::DecInput) => {
-                gst::warning!(
+                gst::trace!(
                     CAT,
                     imp: self,
                     "Dropping frame {} because it's undecodable",
                     offset.unwrap()
                 );
+                drop(state_guard);
+                self.obj().drop_frame(frame)?;
             }
             Err(err) => {
                 gst::warning!(CAT, imp: self, "decoder returned {:?}", err);
@@ -500,7 +502,7 @@ impl VideoDecoderImpl for VVdeC {
                 state.video_meta_supported = query
                     .find_allocation_meta::<gst_video::VideoMeta>()
                     .is_some();
-                gst::trace!(
+                gst::info!(
                     CAT,
                     imp: self,
                     "Video meta support: {}",

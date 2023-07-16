@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-const VVDEC_VERSION: &str = "2.0.0";
+const VVDEC_VERSION: &str = "2.1.0";
 
 mod build {
     use super::*;

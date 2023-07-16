@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/rust:0-1-bullseye
+FROM mcr.microsoft.com/devcontainers/rust:latest
 
 RUN apt-get update && \
     apt-get install -y cmake llvm-dev libclang-dev clang && \

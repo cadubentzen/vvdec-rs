@@ -7,10 +7,10 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 use gst::glib;
 
-mod vvdec_element;
+mod dec;
 
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-    vvdec_element::register(plugin)?;
+    dec::register(plugin)?;
     Ok(())
 }
 

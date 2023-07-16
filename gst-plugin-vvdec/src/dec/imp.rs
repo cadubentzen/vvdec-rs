@@ -47,28 +47,37 @@ impl VVdeC {
 
         let offset = Some(frame.system_frame_number() as u64);
         let dts = input_buffer.dts().map(|ts| *ts as u64);
+        let is_random_access_point = frame
+            .flags()
+            .contains(gst_video::VideoCodecFrameFlags::SYNC_POINT);
 
         let input_data = input_buffer
             .into_mapped_buffer_readable()
             .map_err(|_| gst::FlowError::Error)?;
 
-        match state.decoder.decode(input_data, offset, dts, false) {
+        // VVdeC doesn't support passing opaque data per-frame. So we store
+        // system_frame_number via the cts field, since it's not used in the
+        // decoder but the value is returned in the matching decoded frames.
+        match state
+            .decoder
+            .decode(input_data, offset, dts, is_random_access_point)
+        {
             Ok(Some(frame)) => {
                 drop(self.handle_decoded_frame(state_guard, &frame)?);
             }
             Ok(None) | Err(vvdec::Error::TryAgain) => (),
             Err(vvdec::Error::DecInput) => {
-                gst::trace!(
+                gst::warning!(
                     CAT,
                     imp: self,
                     "Dropping frame {} because it's undecodable",
                     offset.unwrap()
                 );
                 drop(state_guard);
-                self.obj().drop_frame(frame)?;
+                self.obj().release_frame(frame);
             }
             Err(err) => {
-                gst::warning!(CAT, imp: self, "decoder returned {:?}", err);
+                gst::error!(CAT, imp: self, "decoder returned {:?}", err);
                 return Err(gst::FlowError::Error);
             }
         }
@@ -144,7 +153,7 @@ impl VVdeC {
         let input_state = state.input_state.clone();
         drop(state_guard);
 
-        // The mutex needs to have been dropped in this portion, because it will
+        // The mutex needs to have been dropped here, because set_output_state() can
         // trigger a `decide_allocation` call which also needs to lock the mutex.
         // Not dropping the mutex would otherwise dead-lock.
         let instance = self.obj();
@@ -167,7 +176,6 @@ impl VVdeC {
         let bit_depth = frame.bit_depth();
 
         let format_desc = match (&color_format, bit_depth) {
-            (vvdec::ColorFormat::Yuv400Planar, _) => todo!("implement grayscale"),
             (vvdec::ColorFormat::Yuv420Planar, 8) => "I420",
             (vvdec::ColorFormat::Yuv422Planar, 8) => "Y42B",
             (vvdec::ColorFormat::Yuv444Planar, 8) => "Y444",
@@ -207,7 +215,7 @@ impl VVdeC {
                 Ok(frame) => state_guard = self.handle_decoded_frame(state_guard, &frame)?,
                 Err(vvdec::Error::Eof) | Err(vvdec::Error::RestartRequired) => return Ok(()),
                 Err(err) => {
-                    gst::warning!(
+                    gst::error!(
                         CAT,
                         imp: self,
                         "Decoder returned error while flushing: {err}"
@@ -219,11 +227,21 @@ impl VVdeC {
     }
 
     fn flush_decoder(&self, state: &mut State) -> bool {
-        let Some(decoder) = vvdec::Decoder::new() else {
-            gst::error!(CAT, imp: self, "Failed to create new encoder instance");
-            return false;
-        };
-        state.decoder = decoder;
+        loop {
+            match state.decoder.flush() {
+                Ok(_) => continue,
+                Err(vvdec::Error::Eof) | Err(vvdec::Error::RestartRequired) => break,
+                Err(err) => {
+                    gst::error!(
+                        CAT,
+                        imp: self,
+                        "Decoder returned error while flushing: {err}"
+                    );
+                    return false;
+                }
+            }
+        }
+
         true
     }
 
@@ -239,7 +257,6 @@ impl VVdeC {
         let mut_buffer = out_buffer.get_mut().unwrap();
 
         let info = output_state.info();
-        // TODO: implement grayscale
         let components = [
             vvdec::PlaneComponent::Y,
             vvdec::PlaneComponent::U,
@@ -308,7 +325,6 @@ impl VVdeC {
 }
 
 fn video_output_formats() -> impl IntoIterator<Item = gst_video::VideoFormat> {
-    // TODO: implement grayscale
     [
         gst_video::VideoFormat::I420,
         gst_video::VideoFormat::Y42b,
@@ -319,15 +335,9 @@ fn video_output_formats() -> impl IntoIterator<Item = gst_video::VideoFormat> {
         gst_video::VideoFormat::I42210le,
         #[cfg(target_endian = "little")]
         gst_video::VideoFormat::Y44410le,
-        // FIXME: not sure whether VVdeC has ever been tested
-        // in big-endian platform. If so, then the lines below
-        // can be uncommented.
-        // #[cfg(target_endian = "big")]
-        // gst_video::VideoFormat::I42010be,
-        // #[cfg(target_endian = "big")]
-        // gst_video::VideoFormat::I42210be,
-        // #[cfg(target_endian = "big")]
-        // gst_video::VideoFormat::Y44410be,
+        // Not sure whether VVdeC has ever been tested
+        // in big-endian platforms, so we'll leave those
+        // formats out.
     ]
 }
 
@@ -421,21 +431,8 @@ impl VideoDecoderImpl for VVdeC {
 
         {
             let state_guard = self.state.lock().unwrap();
-            gst::trace!(
-                CAT,
-                imp: self,
-                "Lock acquired for decoding frame {}",
-                offset
-            );
             self.decode(state_guard, input_buffer, frame)?;
         }
-
-        gst::trace!(
-            CAT,
-            imp: self,
-            "Lock released for decoding frame {}",
-            offset
-        );
 
         Ok(gst::FlowSuccess::Ok)
     }

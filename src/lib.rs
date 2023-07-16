@@ -95,6 +95,9 @@ impl Decoder {
     }
 }
 
+unsafe impl Sync for Decoder {}
+unsafe impl Send for Decoder {}
+
 pub struct Params {
     params: vvdecParams,
 }
@@ -250,6 +253,9 @@ impl Display for Frame {
     }
 }
 
+unsafe impl Send for Frame {}
+unsafe impl Sync for Frame {}
+
 #[derive(Debug)]
 pub struct InnerFrame {
     decoder: Decoder,
@@ -349,6 +355,9 @@ impl Deref for Plane {
         self.as_ref()
     }
 }
+
+unsafe impl Send for Plane {}
+unsafe impl Sync for Plane {}
 
 #[derive(Debug)]
 pub enum PlaneComponent {

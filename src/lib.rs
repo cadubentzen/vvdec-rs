@@ -41,11 +41,12 @@ impl Decoder {
 
     pub fn decode(
         &mut self,
-        data: &[u8],
+        data: impl AsRef<[u8]>,
         cts: Option<u64>,
         dts: Option<u64>,
         is_random_access_point: bool,
     ) -> Result<Option<Frame>, Error> {
+        let data = data.as_ref();
         let mut au = vvdecAccessUnit {
             payload: data.as_ptr() as *mut u8,
             payloadSize: data.len() as i32,

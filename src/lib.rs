@@ -359,7 +359,7 @@ impl Deref for Plane {
 unsafe impl Send for Plane {}
 unsafe impl Sync for Plane {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum PlaneComponent {
     Y,
     U,
@@ -373,6 +373,16 @@ impl PlaneComponent {
             PlaneComponent::Y => vvdecComponentType_VVDEC_CT_Y,
             PlaneComponent::U => vvdecComponentType_VVDEC_CT_U,
             PlaneComponent::V => vvdecComponentType_VVDEC_CT_V,
+        }
+    }
+}
+
+impl From<PlaneComponent> for usize {
+    fn from(value: PlaneComponent) -> Self {
+        match value {
+            PlaneComponent::Y => 0,
+            PlaneComponent::U => 1,
+            PlaneComponent::V => 2,
         }
     }
 }

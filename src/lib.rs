@@ -26,6 +26,10 @@ impl Drop for InnerDecoder {
 }
 
 impl Decoder {
+    pub fn new() -> Result<Self, Error> {
+        Self::builder().build()
+    }
+
     pub fn builder() -> DecoderBuilder {
         DecoderBuilder::new()
     }

@@ -1,7 +1,7 @@
 use std::{fs::File, io::Read, io::Write, path::PathBuf};
 
 use clap::Parser;
-use vvdec::{ColorFormat, Decoder, Error, Frame, Params, PlaneComponent};
+use vvdec::{ColorFormat, Decoder, Error, Frame, PlaneComponent};
 use y4m::{Colorspace, Encoder};
 
 mod chunked_reader;
@@ -31,9 +31,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     let mut chunked_reader = ChunkedReader::new(reader);
-    let mut params = Params::new();
-    params.set_remove_padding(true);
-    let mut decoder = Decoder::with_params(params).expect("could not open decoder");
+    let mut decoder = Decoder::builder().remove_padding(true).build()?;
 
     let mut y4m_encoder = None;
     while let Some(chunk) = chunked_reader.next_chunk()? {

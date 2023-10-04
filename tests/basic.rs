@@ -10,10 +10,8 @@ const DATA: &[u8] = include_bytes!("../tests/short.vvc");
 
 #[test]
 fn basic() -> Result<(), Error> {
-    let mut params = Params::new();
-    params.set_remove_padding(true);
+    let mut decoder = Decoder::builder().remove_padding(true).build()?;
 
-    let mut decoder = Decoder::with_params(params).unwrap();
     assert_matches!(
         decoder.decode(DATA, Some(0), Some(0), false),
         Err(Error::TryAgain)
@@ -58,7 +56,7 @@ fn split_data(data: &[u8]) -> Vec<&[u8]> {
 
 #[test]
 fn test_split_data() -> Result<(), Error> {
-    let mut decoder = Decoder::new().unwrap();
+    let mut decoder = Decoder::builder().build()?;
 
     for slice in split_data(DATA) {
         let _ = decoder.decode(slice, Some(0), Some(0), false);
@@ -87,7 +85,7 @@ fn test_split_data() -> Result<(), Error> {
 
 #[test]
 fn test_decode_after_flush() -> Result<(), Error> {
-    let mut decoder = Decoder::new().unwrap();
+    let mut decoder = Decoder::builder().build()?;
 
     let mut slices = split_data(DATA).into_iter();
     let sps = slices.next().unwrap();
@@ -120,7 +118,7 @@ fn test_decode_after_flush() -> Result<(), Error> {
 
 #[test]
 fn test_change_resolution() -> Result<(), Error> {
-    let mut decoder = Decoder::new().unwrap();
+    let mut decoder = Decoder::builder().build()?;
 
     let _ = decoder.decode(DATA, None, None, false);
     let first_frame = decoder.flush().unwrap();

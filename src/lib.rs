@@ -26,17 +26,18 @@ impl Drop for InnerDecoder {
 }
 
 impl Decoder {
-    pub fn new() -> Option<Self> {
-        let default_params = Params::default();
-        Self::with_params(default_params)
+    pub fn builder() -> DecoderBuilder {
+        DecoderBuilder::new()
     }
 
-    pub fn with_params(mut params: Params) -> Option<Self> {
-        let decoder = unsafe { vvdec_decoder_open(&mut params.params) };
+    fn with_params(params: &mut vvdecParams) -> Result<Self, Error> {
+        let decoder = unsafe { vvdec_decoder_open(params) };
 
-        ptr::NonNull::new(decoder).map(|decoder| Self {
-            inner: Arc::new(Mutex::new(InnerDecoder { decoder })),
-        })
+        ptr::NonNull::new(decoder)
+            .map(|decoder| Self {
+                inner: Arc::new(Mutex::new(InnerDecoder { decoder })),
+            })
+            .ok_or(Error::FailedToOpen)
     }
 
     pub fn decode(
@@ -98,37 +99,46 @@ impl Decoder {
 unsafe impl Sync for Decoder {}
 unsafe impl Send for Decoder {}
 
-pub struct Params {
+pub struct DecoderBuilder {
     params: vvdecParams,
 }
 
-impl Params {
+impl DecoderBuilder {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn set_num_threads(&mut self, num_threads: i32) {
+    pub fn build(&mut self) -> Result<Decoder, Error> {
+        Decoder::with_params(&mut self.params)
+    }
+
+    pub fn num_threads(&mut self, num_threads: i32) -> &mut Self {
         self.params.threads = num_threads;
+        self
     }
 
-    pub fn set_num_parse_threads(&mut self, num_parse_threads: i32) {
+    pub fn num_parse_threads(&mut self, num_parse_threads: i32) -> &mut Self {
         self.params.parseThreads = num_parse_threads;
+        self
     }
 
-    pub fn set_verify_picture_hash(&mut self, verify_picture_hash: bool) {
+    pub fn verify_picture_hash(&mut self, verify_picture_hash: bool) -> &mut Self {
         self.params.verifyPictureHash = verify_picture_hash;
+        self
     }
 
-    pub fn set_remove_padding(&mut self, remove_padding: bool) {
+    pub fn remove_padding(&mut self, remove_padding: bool) -> &mut Self {
         self.params.removePadding = remove_padding;
+        self
     }
 
-    pub fn set_error_handling(&mut self, error_handling: ErrorHandling) {
+    pub fn error_handling(&mut self, error_handling: ErrorHandling) -> &mut Self {
         self.params.errHandlingFlags = error_handling.to_ffi();
+        self
     }
 }
 
-impl Default for Params {
+impl Default for DecoderBuilder {
     fn default() -> Self {
         unsafe {
             let mut params: vvdecParams = mem::zeroed();
@@ -140,6 +150,8 @@ impl Default for Params {
 
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum Error {
+    #[error("failed to open decoder")]
+    FailedToOpen,
     #[error("unspecified malfunction")]
     Unspecified,
     #[error("decoder not initialized or tried to initialize multiple times")]

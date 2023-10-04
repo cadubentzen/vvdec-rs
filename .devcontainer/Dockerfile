@@ -4,7 +4,7 @@ RUN apt-get update && \
     apt-get install -y cmake llvm-dev libclang-dev clang && \
     apt-get clean
 
-RUN git clone --depth 1 -b v2.1.0 https://github.com/fraunhoferhhi/vvdec.git && \
+RUN git clone --depth 1 -b v2.1.2 https://github.com/fraunhoferhhi/vvdec.git && \
     cd vvdec && \
     make install-release-shared install-vvdecapp=1 install-prefix=/usr && \
     rm -rf vvdec

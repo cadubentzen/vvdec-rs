@@ -393,7 +393,7 @@ pub struct PictureAttributes {
     pub slice_type: SliceType,
     pub is_ref_pic: bool,
     pub temporal_layer: u32,
-    pub poc: u64,
+    pub poc: i64,
     pub num_compressed_bits: u32,
     pub vui: Option<Vui>,
     pub hrd: Option<Hrd>,

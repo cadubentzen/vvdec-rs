@@ -364,7 +364,7 @@ pub enum PlaneComponent {
 
 impl PlaneComponent {
     #[inline]
-    fn to_ffi(&self) -> u32 {
+    fn to_ffi(self) -> u32 {
         match self {
             PlaneComponent::Y => vvdecComponentType_VVDEC_CT_Y,
             PlaneComponent::U => vvdecComponentType_VVDEC_CT_U,

@@ -272,7 +272,6 @@ impl Deref for InnerFrame {
 
 impl InnerFrame {
     fn new(decoder: Decoder, frame: ptr::NonNull<vvdecFrame>) -> Self {
-        // println!("new frame: {:?}", frame.as_ptr());
         Self { decoder, frame }
     }
 }
@@ -339,9 +338,6 @@ impl AsRef<[u8]> for Plane {
         unsafe {
             std::slice::from_raw_parts(
                 self.inner().ptr as *const u8,
-                // VVdeC docs say the stride is in number of samples, but it's
-                // actually in number of bytes
-                // https://github.com/fraunhoferhhi/vvdec/pull/145
                 self.stride() as usize * self.height() as usize,
             )
         }

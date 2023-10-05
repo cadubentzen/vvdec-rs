@@ -1,6 +1,6 @@
 [package]
 name = "vvdec"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 description = "Rust bindings for VVdeC"
@@ -10,7 +10,7 @@ exclude = ["tests/", ".devcontainer/", ".github/"]
 
 [dependencies]
 thiserror = "1"
-vvdec-sys = { path = "./vvdec-sys", version = "0.1.0" }
+vvdec-sys = { path = "./vvdec-sys", version = "0.2.0" }
 
 [workspace]
 members = ["vvdec-sys", "vvdecli"]

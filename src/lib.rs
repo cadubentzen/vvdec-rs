@@ -391,11 +391,7 @@ impl PlaneComponent {
 
 impl From<PlaneComponent> for usize {
     fn from(value: PlaneComponent) -> Self {
-        match value {
-            PlaneComponent::Y => 0,
-            PlaneComponent::U => 1,
-            PlaneComponent::V => 2,
-        }
+        value.to_ffi() as usize
     }
 }
 

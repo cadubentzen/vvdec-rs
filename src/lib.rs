@@ -273,7 +273,7 @@ unsafe impl Send for Frame {}
 unsafe impl Sync for Frame {}
 
 #[derive(Debug)]
-pub struct InnerFrame {
+struct InnerFrame {
     decoder: Decoder,
     frame: ptr::NonNull<vvdecFrame>,
 }

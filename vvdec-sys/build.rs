@@ -65,7 +65,7 @@ fn main() {
     {
         Ok(library) => library,
         Err(_) => {
-            if env::var("VVDEC_SYS_BUILD_DEP_FROM_SRC").is_err() {
+            if env::var("VVDEC_SYS_BUILD_DEP_FROM_SRC").is_err() && env::var("DOCS_RS").is_err() {
                 panic!(
                     "libvvdec not found in the system. To allow building it from source, \
                     set environment variable VVDEC_SYS_BUILD_DEP_FROM_SRC=1"

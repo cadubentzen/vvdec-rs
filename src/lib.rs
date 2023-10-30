@@ -1,5 +1,32 @@
+#![warn(missing_docs)]
+
+//! # vvdec-rs: Rust bindings to VVdeC
+//!
+//! This crate provides safe Rust bindings to VVdeC.
+//!
+//! ```
+//! use vvdec::{Decoder, Error, Frame};
+//!
+//! let mut decoder = Decoder::new().unwrap();
+//! let data: &[u8] = &[0u8; 64]; // Replace this with actual VVC bitstream data.
+//!
+//! if let Ok(Some(frame)) = decoder.decode(data) {
+//!     process_frame(frame);
+//! }
+//!
+//! // At the end, call flush until Eof
+//! loop {
+//!     match decoder.flush() {
+//!         Ok(frame) => process_frame(frame),
+//!         Err(Error::Eof) => break,
+//!         Err(err) => panic!("{err}"),
+//!     }
+//! }
+//!
+//! fn process_frame(frame: Frame) {}
+//! ```
+
 use std::{
-    fmt::Display,
     mem,
     ops::Deref,
     ptr,
@@ -7,6 +34,7 @@ use std::{
 };
 use vvdec_sys::*;
 
+/// VVC decoder
 #[derive(Debug, Clone)]
 pub struct Decoder {
     inner: Arc<Mutex<InnerDecoder>>,
@@ -25,11 +53,43 @@ impl Drop for InnerDecoder {
     }
 }
 
+/// Access unit for VVC bitstream data.
+pub struct AccessUnit<A: AsRef<[u8]>> {
+    /// The payload data.
+    pub payload: A,
+    /// Composition timestamp.
+    pub cts: Option<u64>,
+    /// Decoding timestamp.
+    pub dts: Option<u64>,
+    /// Is it an random access point?
+    pub is_random_access_point: bool,
+}
+
+impl<A: AsRef<[u8]>> AccessUnit<A> {
+    /// Create a new access unit with no cts, dts and not a random access point.
+    pub fn new(payload: A) -> Self {
+        Self {
+            payload: payload,
+            cts: None,
+            dts: None,
+            is_random_access_point: false,
+        }
+    }
+}
+
+impl<'a> From<&'a [u8]> for AccessUnit<&'a [u8]> {
+    fn from(value: &'a [u8]) -> Self {
+        Self::new(value)
+    }
+}
+
 impl Decoder {
+    /// Create a new VVC decoder with default settings
     pub fn new() -> Result<Self, Error> {
         Self::builder().build()
     }
 
+    /// Create decoder builder
     pub fn builder() -> DecoderBuilder {
         DecoderBuilder::new()
     }
@@ -44,18 +104,28 @@ impl Decoder {
             .ok_or(Error::FailedToOpen)
     }
 
-    pub fn decode(
+    /// Decode input data
+    ///
+    /// The decode function takes bitstream VVC data in the Annex-B
+    /// format, which is prefixed by 0x000001 or 0x00000001.
+    ///
+    /// On success, it can optionally return a decoded frame, but may also
+    /// not return anything, for example if it needs more data.
+    pub fn decode<A: AsRef<[u8]>>(
         &mut self,
-        data: impl AsRef<[u8]>,
-        cts: Option<u64>,
-        dts: Option<u64>,
-        is_random_access_point: bool,
+        access_unit: impl Into<AccessUnit<A>>,
     ) -> Result<Option<Frame>, Error> {
-        let data = data.as_ref();
+        let AccessUnit {
+            payload,
+            cts,
+            dts,
+            is_random_access_point,
+        } = access_unit.into();
+        let payload = payload.as_ref();
         let mut au = vvdecAccessUnit {
-            payload: data.as_ptr() as *mut u8,
-            payloadSize: data.len() as i32,
-            payloadUsedSize: data.len() as i32,
+            payload: payload.as_ptr() as *mut u8,
+            payloadSize: payload.len() as i32,
+            payloadUsedSize: payload.len() as i32,
             cts: cts.unwrap_or_default(),
             dts: dts.unwrap_or_default(),
             ctsValid: cts.is_some(),
@@ -82,6 +152,10 @@ impl Decoder {
         }))
     }
 
+    /// Flush the decoder
+    ///
+    /// It will flush the internally stored decoder state, returning frames
+    /// until it returns Err(Error::Eof), or fails with another error.
     pub fn flush(&mut self) -> Result<Frame, Error> {
         let mut frame: *mut vvdecFrame = ptr::null_mut();
 
@@ -103,41 +177,37 @@ impl Decoder {
 unsafe impl Sync for Decoder {}
 unsafe impl Send for Decoder {}
 
+/// Decoder builder
 pub struct DecoderBuilder {
     params: vvdecParams,
 }
 
 impl DecoderBuilder {
+    /// Create a new DecoderBuilder.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Construct a Decoder instance.
     pub fn build(&mut self) -> Result<Decoder, Error> {
         Decoder::with_params(&mut self.params)
     }
 
+    /// Set number of threads.
     pub fn num_threads(&mut self, num_threads: i32) -> &mut Self {
         self.params.threads = num_threads;
         self
     }
 
+    /// Set number of threads for parsing.
     pub fn num_parse_threads(&mut self, num_parse_threads: i32) -> &mut Self {
         self.params.parseThreads = num_parse_threads;
         self
     }
 
-    pub fn verify_picture_hash(&mut self, verify_picture_hash: bool) -> &mut Self {
-        self.params.verifyPictureHash = verify_picture_hash;
-        self
-    }
-
+    /// Remove padding in the decoded buffers.
     pub fn remove_padding(&mut self, remove_padding: bool) -> &mut Self {
         self.params.removePadding = remove_padding;
-        self
-    }
-
-    pub fn error_handling(&mut self, error_handling: ErrorHandling) -> &mut Self {
-        self.params.errHandlingFlags = error_handling.to_ffi();
         self
     }
 }
@@ -152,32 +222,43 @@ impl Default for DecoderBuilder {
     }
 }
 
+/// An error that has occurred when using a Decoder.
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum Error {
+    /// Failed to open decoder.
     #[error("failed to open decoder")]
     FailedToOpen,
+    /// Unspecified malfunction.
     #[error("unspecified malfunction")]
     Unspecified,
-    #[error("decoder not initialized or tried to initialize multiple times")]
-    Initialize,
+    /// Internal allocation error.
     #[error("internal allocation error")]
     Allocate,
-    #[error("decoder input error, decoder input data error")]
+    /// Decoder input error.
+    #[error("decoder input error")]
     DecInput,
-    #[error("allocated memory to small to receive decoded data. After allocating sufficient memory the failed call can be repeated.")]
+    /// Allocated memory too small to receive decoded data. After allocating sufficient memory the failed call can be repeated.
+    #[error("allocated memory too small to receive decoded data. After allocating sufficient memory the failed call can be repeated.")]
     EnoughMem,
+    /// Inconsistent or invalid parameters.
     #[error("inconsistent or invalid parameters")]
     Parameter,
+    /// Unsupported request.
     #[error("unsupported request")]
     NotSupported,
+    /// Decoder requires restart.
     #[error("decoder requires restart")]
     RestartRequired,
-    #[error("unsupported CPU SSE 4.1 needed")]
+    /// Unsupported CPU.
+    #[error("unsupported CPU")]
     Cpu,
+    /// Decoder needs more input and cannot return a picture.
     #[error("decoder needs more input and cannot return a picture")]
     TryAgain,
+    /// End of file.
     #[error("end of file")]
     Eof,
+    /// Unknown error
     #[error("unknown error with code {0}")]
     Unknown(i32),
 }
@@ -188,7 +269,6 @@ impl Error {
         #[allow(non_upper_case_globals)]
         match code {
             vvdecErrorCodes_VVDEC_ERR_UNSPECIFIED => Unspecified,
-            vvdecErrorCodes_VVDEC_ERR_INITIALIZE => Initialize,
             vvdecErrorCodes_VVDEC_ERR_ALLOCATE => Allocate,
             vvdecErrorCodes_VVDEC_ERR_DEC_INPUT => DecInput,
             vvdecErrorCodes_VVDEC_NOT_ENOUGH_MEM => EnoughMem,
@@ -203,69 +283,61 @@ impl Error {
     }
 }
 
+/// A raw frame returned by the Decoder.
 #[derive(Debug, Clone)]
 pub struct Frame {
     inner: Arc<InnerFrame>,
 }
 
 impl Frame {
-    pub fn plane(&self, component: PlaneComponent) -> Plane {
+    /// Get plane from the specified component.
+    pub fn plane(&self, component: PlaneComponent) -> Option<Plane> {
         Plane::new(self.clone(), component)
     }
 
+    /// Get number of planes.
     pub fn num_planes(&self) -> u32 {
         self.inner.numPlanes
     }
 
+    /// Get frame width.
     pub fn width(&self) -> u32 {
         self.inner.width
     }
 
+    /// Get frame height.
     pub fn height(&self) -> u32 {
         self.inner.height
     }
 
+    /// Get bit depth.
     pub fn bit_depth(&self) -> u32 {
         self.inner.bitDepth
     }
 
+    /// Sequence number of the frame.
     pub fn sequence_number(&self) -> u64 {
         self.inner.sequenceNumber
     }
 
+    /// Get composition timestamp.
     pub fn cts(&self) -> Option<u64> {
         self.inner.ctsValid.then_some(self.inner.cts)
     }
 
+    /// Get frame format.
     pub fn frame_format(&self) -> FrameFormat {
         FrameFormat::new(self.inner.frameFormat)
     }
 
+    /// Get color format.
     pub fn color_format(&self) -> ColorFormat {
         ColorFormat::new(self.inner.colorFormat)
     }
 
+    /// Get picture attributes.
     pub fn picture_attributes(&self) -> Option<PictureAttributes> {
         ptr::NonNull::new(self.inner.picAttributes).map(PictureAttributes::new)
-    }
-}
-
-impl Display for Frame {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Frame(num planes: {}, width: {}, height: {}, bit depth: {}, \
-            sequence number: {}, cts: {}, frame format: {:?}, color format: {:?}, pic attributes: {:#?})",
-            self.num_planes(),
-            self.width(),
-            self.height(),
-            self.bit_depth(),
-            self.sequence_number(),
-            self.cts().unwrap_or_default(),
-            self.frame_format(),
-            self.color_format(),
-            self.picture_attributes()
-        )
     }
 }
 
@@ -303,6 +375,9 @@ impl Drop for InnerFrame {
     }
 }
 
+/// A plane from a Frame.
+///
+/// A plane can only be created via Frame::plane.
 #[derive(Debug)]
 pub struct Plane {
     frame: Frame,
@@ -310,8 +385,8 @@ pub struct Plane {
 }
 
 impl Plane {
-    fn new(frame: Frame, component: PlaneComponent) -> Self {
-        Self { frame, component }
+    fn new(frame: Frame, component: PlaneComponent) -> Option<Self> {
+        (component.to_ffi() < frame.num_planes()).then_some(Self { frame, component })
     }
 
     #[inline]
@@ -319,33 +394,24 @@ impl Plane {
         self.frame.inner.planes[self.component.to_ffi() as usize]
     }
 
+    /// Get plane width.
     pub fn width(&self) -> u32 {
         self.inner().width
     }
 
+    /// Get plane height.
     pub fn height(&self) -> u32 {
         self.inner().height
     }
 
+    /// Get plane stride, in bytes.
     pub fn stride(&self) -> u32 {
         self.inner().stride
     }
 
+    /// Get number of bytes per sample.
     pub fn bytes_per_sample(&self) -> u32 {
         self.inner().bytesPerSample
-    }
-}
-
-impl Display for Plane {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Plane(width: {}, height: {}, stride: {}, bytes_per_sample: {})",
-            self.width(),
-            self.height(),
-            self.stride(),
-            self.bytes_per_sample()
-        )
     }
 }
 
@@ -371,10 +437,14 @@ impl Deref for Plane {
 unsafe impl Send for Plane {}
 unsafe impl Sync for Plane {}
 
+/// A plane component
 #[derive(Debug, Clone, Copy)]
 pub enum PlaneComponent {
+    /// The luma component
     Y,
+    /// The U chroma component
     U,
+    /// The V chroma component
     V,
 }
 
@@ -395,17 +465,25 @@ impl From<PlaneComponent> for usize {
     }
 }
 
+/// Picture attributes.
 #[derive(Debug)]
 pub struct PictureAttributes {
+    /// NAL type.
     pub nal_type: NalType,
+    /// Slice type.
     pub slice_type: SliceType,
+    /// Is this a reference picture?
     pub is_ref_pic: bool,
+    /// Temporal layer index
     pub temporal_layer: u32,
+    /// Picture order count
     pub poc: i64,
+    /// Number of compressed bits
     pub num_compressed_bits: u32,
+    /// VUI parameters
     pub vui: Option<Vui>,
+    /// HRD parameters
     pub hrd: Option<Hrd>,
-    pub ols_hrd: Option<OlsHrd>,
 }
 
 impl PictureAttributes {
@@ -419,7 +497,7 @@ impl PictureAttributes {
             bits,
             vui,
             hrd,
-            olsHrd,
+            ..
         } = unsafe { pic_attributes.as_ref() };
         Self {
             nal_type: NalType::new(nalType),
@@ -430,46 +508,58 @@ impl PictureAttributes {
             num_compressed_bits: bits,
             vui: ptr::NonNull::new(vui).map(Vui::new),
             hrd: ptr::NonNull::new(hrd).map(Hrd::new),
-            ols_hrd: ptr::NonNull::new(olsHrd).map(OlsHrd::new),
         }
     }
 }
 
+/// NAL type.
 #[derive(Debug)]
 pub enum NalType {
+    /// Coded slice trail.
     CodedSliceTrail,
+    /// Coded slice STSA.
     CodedSliceStsa,
+    /// Coded slice RADL.
     CodedSliceRadl,
+    /// Coded slice RASL.
     CodedSliceRasl,
-    ReservedVcl4,
-    ReservedVcl5,
-    ReservedVcl6,
+    /// Coded slice IDR W RADL.
     CodedSliceIdrWRadl,
+    /// Coded slice IDR N LP.
     CodedSliceIdrNLp,
+    /// Coded slice CRA.
     CodedSliceCra,
+    /// Coded slice GDR.
     CodedSliceGdr,
-    ReservedIrapVcl11,
-    ReservedIrapVcl12,
+    /// DCI.
     Dci,
+    /// VPS.
     Vps,
+    /// SPS.
     Sps,
+    /// PPS.
     Pps,
+    /// Prefix APS.
     PrefixAps,
+    /// Suffix APS.
     SuffixAps,
+    /// PH.
     Ph,
+    /// Access Unit delimiter.
     AccessUnitDelimiter,
+    /// End-of-stream.
     Eos,
+    /// EOB.
     Eob,
+    /// Prefix SEI.
     PrefixSei,
+    /// Suffix SEI.
     SuffixSei,
+    /// FD.
     Fd,
-    ReservedNvcl26,
-    ReservedNvcl27,
-    Unspecified28,
-    Unspecified29,
-    Unspecified30,
-    Unspecified31,
+    /// Invalid.
     Invalid,
+    /// Unknown.
     Unknown(u32),
 }
 
@@ -482,15 +572,10 @@ impl NalType {
             vvdecNalType_VVC_NAL_UNIT_CODED_SLICE_STSA => CodedSliceStsa,
             vvdecNalType_VVC_NAL_UNIT_CODED_SLICE_RADL => CodedSliceRadl,
             vvdecNalType_VVC_NAL_UNIT_CODED_SLICE_RASL => CodedSliceRasl,
-            vvdecNalType_VVC_NAL_UNIT_RESERVED_VCL_4 => ReservedVcl4,
-            vvdecNalType_VVC_NAL_UNIT_RESERVED_VCL_5 => ReservedVcl5,
-            vvdecNalType_VVC_NAL_UNIT_RESERVED_VCL_6 => ReservedVcl6,
             vvdecNalType_VVC_NAL_UNIT_CODED_SLICE_IDR_W_RADL => CodedSliceIdrWRadl,
             vvdecNalType_VVC_NAL_UNIT_CODED_SLICE_IDR_N_LP => CodedSliceIdrNLp,
             vvdecNalType_VVC_NAL_UNIT_CODED_SLICE_CRA => CodedSliceCra,
             vvdecNalType_VVC_NAL_UNIT_CODED_SLICE_GDR => CodedSliceGdr,
-            vvdecNalType_VVC_NAL_UNIT_RESERVED_IRAP_VCL_11 => ReservedIrapVcl11,
-            vvdecNalType_VVC_NAL_UNIT_RESERVED_IRAP_VCL_12 => ReservedIrapVcl12,
             vvdecNalType_VVC_NAL_UNIT_DCI => Dci,
             vvdecNalType_VVC_NAL_UNIT_VPS => Vps,
             vvdecNalType_VVC_NAL_UNIT_SPS => Sps,
@@ -504,23 +589,22 @@ impl NalType {
             vvdecNalType_VVC_NAL_UNIT_PREFIX_SEI => PrefixSei,
             vvdecNalType_VVC_NAL_UNIT_SUFFIX_SEI => SuffixSei,
             vvdecNalType_VVC_NAL_UNIT_FD => Fd,
-            vvdecNalType_VVC_NAL_UNIT_RESERVED_NVCL_26 => ReservedNvcl26,
-            vvdecNalType_VVC_NAL_UNIT_RESERVED_NVCL_27 => ReservedNvcl27,
-            vvdecNalType_VVC_NAL_UNIT_UNSPECIFIED_28 => Unspecified28,
-            vvdecNalType_VVC_NAL_UNIT_UNSPECIFIED_29 => Unspecified29,
-            vvdecNalType_VVC_NAL_UNIT_UNSPECIFIED_30 => Unspecified30,
-            vvdecNalType_VVC_NAL_UNIT_UNSPECIFIED_31 => Unspecified31,
             vvdecNalType_VVC_NAL_UNIT_INVALID => Invalid,
             _ => Unknown(nal_type),
         }
     }
 }
 
+/// Slice type.
 #[derive(Debug)]
 pub enum SliceType {
+    /// I-slice.
     I,
+    /// P-slice.
     P,
+    /// B-slice.
     B,
+    /// Unknown.
     Unknown(u32),
 }
 
@@ -537,38 +621,38 @@ impl SliceType {
     }
 }
 
-#[derive(Debug)]
-pub enum ErrorHandling {
-    Off,
-    TryContinue,
-}
-
-impl ErrorHandling {
-    fn to_ffi(&self) -> vvdecErrHandlingFlags {
-        use ErrorHandling::*;
-        match self {
-            Off => vvdecErrHandlingFlags_VVDEC_ERR_HANDLING_OFF,
-            TryContinue => vvdecErrHandlingFlags_VVDEC_ERR_HANDLING_TRY_CONTINUE,
-        }
-    }
-}
-
+/// Frame format.
 #[derive(Debug)]
 pub enum FrameFormat {
+    /// Invalid
     Invalid,
+    /// Progressive
     Progressive,
+    /// Top-field
     TopField,
+    /// Bottom-field
     BottomField,
+    /// Top-bottom
     TopBottom,
+    /// Bottom-top
     BottomTop,
+    /// Top-bottom-top
     TopBottomTop,
+    /// Bottom-top-botttom
     BottomTopBotttom,
+    /// Frame-double
     FrameDouble,
+    /// Frame-triple
     FrameTriple,
+    /// Top paired with previous
     TopPairedWithPrevious,
+    /// Bottom paired with previous
     BottomPairedWithPrevious,
+    /// Top paired with next
     TopPairedWithNext,
+    /// Bottom paired with next
     BottomPairedWithNext,
+    /// Unknown
     Unknown(i32),
 }
 
@@ -596,13 +680,20 @@ impl FrameFormat {
     }
 }
 
+/// Color format.
 #[derive(Debug)]
 pub enum ColorFormat {
+    /// Invalid.
     Invalid,
+    /// YUV400 in planar format (Grayscale).
     Yuv400Planar,
+    /// YUV420 in planar format.
     Yuv420Planar,
+    /// YUV422 in planar format.
     Yuv422Planar,
+    /// YUV444 in planar format.
     Yuv444Planar,
+    /// Unknown.
     Unknown(i32),
 }
 
@@ -621,118 +712,80 @@ impl ColorFormat {
     }
 }
 
+/// HRD parameters.
 #[derive(Debug)]
 pub struct Hrd {
+    /// Number of units in tick.
     pub num_units_in_tick: u32,
+    /// Time scale.
     pub time_scale: u32,
-    pub general_nal_hrd_params_present_flag: bool,
-    pub general_vcl_hrd_params_present_flag: bool,
-    pub general_same_pic_timing_in_all_ols_flag: bool,
-    pub tick_divisor: u32,
-    pub general_decoding_unit_hrd_params_present_flag: bool,
-    pub bit_rate_scale: u32,
-    pub cpb_size_scale: u32,
-    pub cpb_size_du_scale: u32,
-    pub hrd_cpb_cnt: u32,
 }
 
 impl Hrd {
-    pub fn new(hrd: ptr::NonNull<vvdecHrd>) -> Self {
+    fn new(hrd: ptr::NonNull<vvdecHrd>) -> Self {
         let hrd = unsafe { hrd.as_ref() };
         let vvdecHrd {
             numUnitsInTick,
             timeScale,
-            generalNalHrdParamsPresentFlag,
-            generalVclHrdParamsPresentFlag,
-            generalSamePicTimingInAllOlsFlag,
-            tickDivisor,
-            generalDecodingUnitHrdParamsPresentFlag,
-            bitRateScale,
-            cpbSizeScale,
-            cpbSizeDuScale,
-            hrdCpbCnt,
+            ..
         } = *hrd;
 
         Self {
             num_units_in_tick: numUnitsInTick,
             time_scale: timeScale,
-            general_nal_hrd_params_present_flag: generalNalHrdParamsPresentFlag,
-            general_vcl_hrd_params_present_flag: generalVclHrdParamsPresentFlag,
-            general_same_pic_timing_in_all_ols_flag: generalSamePicTimingInAllOlsFlag,
-            tick_divisor: tickDivisor,
-            general_decoding_unit_hrd_params_present_flag: generalDecodingUnitHrdParamsPresentFlag,
-            bit_rate_scale: bitRateScale,
-            cpb_size_scale: cpbSizeScale,
-            cpb_size_du_scale: cpbSizeDuScale,
-            hrd_cpb_cnt: hrdCpbCnt,
         }
     }
 }
 
+/// Sample Aspect Ratio.
 #[derive(Debug)]
 pub enum SampleAspectRatio {
+    /// Indicator mode.
     Indicator(i32),
-    WidthHeight(i32, i32),
+    /// Width and Height mode.
+    WidthHeight {
+        /// Width.
+        width: i32,
+        /// Height.
+        height: i32,
+    },
 }
 
 impl SampleAspectRatio {
     fn new(aspect_ratio_idc: i32, sar_width: i32, sar_height: i32) -> Self {
         if aspect_ratio_idc == 255 {
-            Self::WidthHeight(sar_width, sar_height)
+            Self::WidthHeight {
+                width: sar_width,
+                height: sar_height,
+            }
         } else {
             Self::Indicator(aspect_ratio_idc)
         }
     }
 }
 
+/// VUI parameters.
 #[derive(Debug)]
 pub struct Vui {
+    /// Sample aspect ratio
     pub sample_aspect_ratio: Option<SampleAspectRatio>,
-    pub aspect_ratio_constant_flag: bool,
-    pub non_packed_flag: bool,
-    pub non_projected_flag: bool,
-    pub colour_description_present_flag: bool,
-    pub colour_primaries: i32,
-    pub transfer_characteristics: i32,
-    pub matrix_coefficients: i32,
-    pub progressive_source_flag: bool,
-    pub interlaced_source_flag: bool,
-    pub chroma_loc_info_present_flag: bool,
-    pub chroma_sample_loc_type_top_field: i32,
-    pub chroma_sample_loc_type_bottom_field: i32,
-    pub chroma_sample_loc_type: i32,
-    pub overscan_info_present_flag: bool,
-    pub overscan_appropriate_flag: bool,
-    pub video_signal_type_present_flag: bool,
-    pub video_full_range_flag: bool,
+    /// Is sample aspect ratio constant?
+    pub is_aspect_ratio_constant: bool,
 }
 
 impl Vui {
-    pub fn new(vui: ptr::NonNull<vvdecVui>) -> Self {
+    fn new(vui: ptr::NonNull<vvdecVui>) -> Self {
         let vui = unsafe { vui.as_ref() };
 
         let vvdecVui {
             aspectRatioInfoPresentFlag,
             aspectRatioConstantFlag,
-            nonPackedFlag,
-            nonProjectedFlag,
+            nonPackedFlag: _,
+            nonProjectedFlag: _,
             aspectRatioIdc,
             sarWidth,
             sarHeight,
-            colourDescriptionPresentFlag,
-            colourPrimaries,
-            transferCharacteristics,
-            matrixCoefficients,
-            progressiveSourceFlag,
-            interlacedSourceFlag,
-            chromaLocInfoPresentFlag,
-            chromaSampleLocTypeTopField,
-            chromaSampleLocTypeBottomField,
-            chromaSampleLocType,
-            overscanInfoPresentFlag,
-            overscanAppropriateFlag,
-            videoSignalTypePresentFlag,
-            videoFullRangeFlag,
+            ..
         } = *vui;
 
         Self {
@@ -741,56 +794,7 @@ impl Vui {
                 sarWidth,
                 sarHeight,
             )),
-            aspect_ratio_constant_flag: aspectRatioConstantFlag,
-            non_packed_flag: nonPackedFlag,
-            non_projected_flag: nonProjectedFlag,
-            colour_description_present_flag: colourDescriptionPresentFlag,
-            colour_primaries: colourPrimaries,
-            transfer_characteristics: transferCharacteristics,
-            matrix_coefficients: matrixCoefficients,
-            progressive_source_flag: progressiveSourceFlag,
-            interlaced_source_flag: interlacedSourceFlag,
-            chroma_loc_info_present_flag: chromaLocInfoPresentFlag,
-            chroma_sample_loc_type_top_field: chromaSampleLocTypeTopField,
-            chroma_sample_loc_type_bottom_field: chromaSampleLocTypeBottomField,
-            chroma_sample_loc_type: chromaSampleLocType,
-            overscan_info_present_flag: overscanInfoPresentFlag,
-            overscan_appropriate_flag: overscanAppropriateFlag,
-            video_signal_type_present_flag: videoSignalTypePresentFlag,
-            video_full_range_flag: videoFullRangeFlag,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct OlsHrd {
-    pub fixed_pic_rate_general_flag: bool,
-    pub fixed_pic_rate_within_cvs_flag: bool,
-    pub element_duration_in_tc: u32,
-    pub low_delay_hrd_flag: bool,
-}
-
-impl OlsHrd {
-    pub fn new(ols_hrd: ptr::NonNull<vvdecOlsHrd>) -> Self {
-        let ols_hrd = unsafe { ols_hrd.as_ref() };
-
-        let vvdecOlsHrd {
-            fixedPicRateGeneralFlag,
-            fixedPicRateWithinCvsFlag,
-            elementDurationInTc,
-            lowDelayHrdFlag,
-            bitRateValueMinus1: _,
-            cpbSizeValueMinus1: _,
-            ducpbSizeValueMinus1: _,
-            duBitRateValueMinus1: _,
-            cbrFlag: _,
-        } = *ols_hrd;
-
-        Self {
-            fixed_pic_rate_general_flag: fixedPicRateGeneralFlag,
-            fixed_pic_rate_within_cvs_flag: fixedPicRateWithinCvsFlag,
-            element_duration_in_tc: elementDurationInTc,
-            low_delay_hrd_flag: lowDelayHrdFlag,
+            is_aspect_ratio_constant: aspectRatioConstantFlag,
         }
     }
 }

@@ -12,25 +12,15 @@ const DATA: &[u8] = include_bytes!("../tests/short.vvc");
 fn basic() -> Result<(), Error> {
     let mut decoder = Decoder::builder().remove_padding(true).build()?;
 
-    assert_matches!(
-        decoder.decode(DATA, Some(0), Some(0), false),
-        Err(Error::TryAgain)
-    );
+    assert_matches!(decoder.decode(DATA), Err(Error::TryAgain));
 
     let frame1 = decoder.flush()?;
-    println!("{frame1}");
-    let plane = frame1.plane(PlaneComponent::Y);
-    println!("plane 0: {} len {}", plane, plane.len());
-    let plane = frame1.plane(PlaneComponent::U);
-    println!("plane 1: {} len {}", plane, plane.len());
-    let plane = frame1.plane(PlaneComponent::V);
-    println!("plane 2: {} len {}", plane, plane.len());
+    let _plane = frame1.plane(PlaneComponent::Y).unwrap();
+    let _plane = frame1.plane(PlaneComponent::U).unwrap();
+    let _plane = frame1.plane(PlaneComponent::V).unwrap();
 
-    let frame2 = decoder.flush()?;
-    println!("{frame2}");
-
-    let frame3 = decoder.flush()?;
-    println!("{frame3}");
+    let _frame2 = decoder.flush()?;
+    let _frame3 = decoder.flush()?;
 
     assert_matches!(decoder.flush(), Err(Error::Eof));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));
@@ -59,23 +49,16 @@ fn test_split_data() -> Result<(), Error> {
     let mut decoder = Decoder::new()?;
 
     for slice in split_data(DATA) {
-        let _ = decoder.decode(slice, Some(0), Some(0), false);
+        let _ = decoder.decode(slice);
     }
 
     let frame1 = decoder.flush()?;
-    println!("{frame1}");
-    let plane = frame1.plane(PlaneComponent::Y);
-    println!("plane 0: {} len {}", plane, plane.len());
-    let plane = frame1.plane(PlaneComponent::U);
-    println!("plane 1: {} len {}", plane, plane.len());
-    let plane = frame1.plane(PlaneComponent::V);
-    println!("plane 2: {} len {}", plane, plane.len());
+    let _plane = frame1.plane(PlaneComponent::Y).unwrap();
+    let _plane = frame1.plane(PlaneComponent::U).unwrap();
+    let _plane = frame1.plane(PlaneComponent::V).unwrap();
 
-    let frame2 = decoder.flush()?;
-    println!("{frame2}");
-
-    let frame3 = decoder.flush()?;
-    println!("{frame3}");
+    let _frame2 = decoder.flush()?;
+    let _frame3 = decoder.flush()?;
 
     assert_matches!(decoder.flush(), Err(Error::Eof));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));
@@ -94,20 +77,20 @@ fn test_decode_after_flush() -> Result<(), Error> {
     let frame2 = slices.next().unwrap();
     let frame3 = slices.next().unwrap();
 
-    let _ = decoder.decode(sps, None, None, false);
-    let _ = decoder.decode(pps, None, None, false);
-    let _ = decoder.decode(frame1, None, None, false);
-    let _ = decoder.decode(frame2, None, None, false);
+    let _ = decoder.decode(sps);
+    let _ = decoder.decode(pps);
+    let _ = decoder.decode(frame1);
+    let _ = decoder.decode(frame2);
 
     assert!(decoder.flush().is_ok());
     assert!(decoder.flush().is_ok());
     assert_eq!(decoder.flush().unwrap_err(), Error::Eof);
 
-    let _ = decoder.decode(sps, None, None, false);
-    let _ = decoder.decode(pps, None, None, false);
-    let _ = decoder.decode(frame1, None, None, false);
-    let _ = decoder.decode(frame2, None, None, false);
-    let _ = decoder.decode(frame3, None, None, false);
+    let _ = decoder.decode(sps);
+    let _ = decoder.decode(pps);
+    let _ = decoder.decode(frame1);
+    let _ = decoder.decode(frame2);
+    let _ = decoder.decode(frame3);
     assert!(decoder.flush().is_ok());
     assert!(decoder.flush().is_ok());
     assert!(decoder.flush().is_ok());
@@ -120,13 +103,13 @@ fn test_decode_after_flush() -> Result<(), Error> {
 fn test_change_resolution() -> Result<(), Error> {
     let mut decoder = Decoder::new()?;
 
-    let _ = decoder.decode(DATA, None, None, false);
+    let _ = decoder.decode(DATA);
     let first_frame = decoder.flush().unwrap();
     assert_eq!(first_frame.width(), 320);
     assert_eq!(first_frame.height(), 240);
 
     const SECOND_DATA: &[u8] = include_bytes!("../tests/short2.vvc");
-    let _ = decoder.decode(SECOND_DATA, None, None, false);
+    let _ = decoder.decode(SECOND_DATA);
     let first_frame = decoder.flush().unwrap();
     assert_eq!(first_frame.width(), 160);
     assert_eq!(first_frame.height(), 120);

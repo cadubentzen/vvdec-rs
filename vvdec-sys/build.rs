@@ -9,11 +9,8 @@ mod build {
     use std::str::FromStr;
 
     pub fn build_from_src() -> PathBuf {
-        let mut tag = "v".to_string();
-        tag.push_str(VVDEC_VERSION);
-
         let source = PathBuf::from_str("vvdec").expect("submodule is initialized");
-        let install_dir = cmake::build(source);
+        let install_dir = cmake::Config::new(source).generator("Ninja").build();
         install_dir.join("lib/pkgconfig")
     }
 }

@@ -1,11 +1,11 @@
-#![warn(missing_docs)]
+#![forbid(missing_docs)]
 
-//! # vvdec-rs: Rust bindings to VVdeC
+//! # Rust bindings for VVdeC
 //!
-//! This crate provides safe Rust bindings to VVdeC.
+//! This crate provides safe Rust bindings for VVdeC.
 //!
 //! ```
-//! use vvdec::{Decoder, Error, Frame};
+//! use vvdec::{Decoder, Error, Frame, PlaneComponent};
 //!
 //! let mut decoder = Decoder::new().unwrap();
 //! let data: &[u8] = &[0u8; 64]; // Replace this with actual VVC bitstream data.
@@ -23,7 +23,10 @@
 //!     }
 //! }
 //!
-//! fn process_frame(frame: Frame) {}
+//! fn process_frame(frame: Frame) {
+//!     let y_plane = frame.plane(PlaneComponent::Y).unwrap();
+//!     let y_plane_data: &[u8] = y_plane.as_ref();
+//! }
 //! ```
 
 use std::{

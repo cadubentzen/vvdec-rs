@@ -72,7 +72,7 @@ impl<A: AsRef<[u8]>> AccessUnit<A> {
     /// Create a new access unit with no cts, dts and not a random access point.
     pub fn new(payload: A) -> Self {
         Self {
-            payload: payload,
+            payload,
             cts: None,
             dts: None,
             is_random_access_point: false,

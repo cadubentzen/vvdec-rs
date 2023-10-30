@@ -5,23 +5,8 @@ const VVDEC_VERSION: &str = "2.1.2";
 
 mod build {
     use super::*;
-    use std::path::Path;
-    use std::process::{Command, Stdio};
+
     use std::str::FromStr;
-
-    const REPO: &str = "https://github.com/fraunhoferhhi/vvdec.git";
-
-    macro_rules! runner {
-        ($cmd:expr, $($arg:expr),*) => {
-            Command::new($cmd)
-                $(.arg($arg))*
-                .stderr(Stdio::inherit())
-                .stdout(Stdio::inherit())
-                .output()
-                .expect(concat!($cmd, " failed"));
-
-        };
-    }
 
     pub fn build_from_src() -> PathBuf {
         let mut tag = "v".to_string();

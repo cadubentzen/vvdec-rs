@@ -7,6 +7,7 @@ mod build {
     use super::*;
     use std::path::Path;
     use std::process::{Command, Stdio};
+    use std::str::FromStr;
 
     const REPO: &str = "https://github.com/fraunhoferhhi/vvdec.git";
 
@@ -26,30 +27,7 @@ mod build {
         let mut tag = "v".to_string();
         tag.push_str(VVDEC_VERSION);
 
-        let source = PathBuf::from(env::var("OUT_DIR").unwrap()).join("vvdec");
-
-        if !Path::new(&source.join(".git")).exists() {
-            runner!("git", "clone", "--depth", "1", "-b", tag, REPO, &source);
-        } else {
-            runner!(
-                "git",
-                "-C",
-                source.to_str().unwrap(),
-                "fetch",
-                "--depth",
-                "1",
-                "origin",
-                tag
-            );
-            runner!(
-                "git",
-                "-C",
-                source.to_str().unwrap(),
-                "checkout",
-                "FETCH_HEAD"
-            );
-        }
-
+        let source = PathBuf::from_str("vvdec").expect("submodule is initialized");
         let install_dir = cmake::build(source);
         install_dir.join("lib/pkgconfig")
     }

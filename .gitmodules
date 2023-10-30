@@ -1,0 +1,3 @@
+[submodule "vvdec-sys/vvdec"]
+	path = vvdec-sys/vvdec
+	url = https://github.com/fraunhoferhhi/vvdec.git

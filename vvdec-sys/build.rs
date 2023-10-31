@@ -10,7 +10,10 @@ mod build {
 
     pub fn build_from_src() -> PathBuf {
         let source = PathBuf::from_str("vvdec").expect("submodule is initialized");
-        let install_dir = cmake::Config::new(source).generator("Ninja").build();
+        let install_dir = cmake::Config::new(source)
+            .generator("Ninja")
+            .define("VVDEC_TOPLEVEL_OUTPUT_DIRS", "OFF")
+            .build();
         install_dir.join("lib/pkgconfig")
     }
 }

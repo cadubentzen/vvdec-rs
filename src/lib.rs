@@ -46,7 +46,7 @@ use std::{
 };
 use vvdec_sys::*;
 
-/// VVC decoder
+/// VVC decoder.
 #[derive(Debug, Clone)]
 pub struct Decoder {
     inner: Arc<Mutex<InnerDecoder>>,
@@ -65,11 +65,16 @@ impl Drop for InnerDecoder {
     }
 }
 
-/// Access unit for VVC bitstream data.
+/// Access unit containing VVC bitstream data.
+///
+/// VVdeC expects that the pushed access units follow the Annex-B format - prefixed by 0x000001 or 0x00000001.
 pub struct AccessUnit<A> {
     /// The payload data.
     pub payload: A,
     /// Composition timestamp.
+    ///
+    /// The composition timestamp is not used by VVdeC and is passed unchanged to the corresponding decoded Frame
+    /// object. It can be used to transport arbitrary frame identifiers, if necessary by your application.
     pub cts: Option<u64>,
     /// Decoding timestamp.
     pub dts: Option<u64>,
@@ -78,7 +83,7 @@ pub struct AccessUnit<A> {
 }
 
 impl<A> AccessUnit<A> {
-    /// Create a new access unit with no cts, dts and not a random access point.
+    /// Create a new access unit with no cts or dts, that is also not a random access point.
     pub fn new(payload: A) -> Self {
         Self {
             payload,
@@ -96,12 +101,12 @@ impl<A> From<A> for AccessUnit<A> {
 }
 
 impl Decoder {
-    /// Create a new VVC decoder with default settings
+    /// Create a new VVC decoder with default settings.
     pub fn new() -> Result<Self, Error> {
         Self::builder().build()
     }
 
-    /// Create decoder builder
+    /// Create a decoder builder.
     pub fn builder() -> DecoderBuilder {
         DecoderBuilder::new()
     }
@@ -116,10 +121,9 @@ impl Decoder {
             .ok_or(Error::FailedToOpen)
     }
 
-    /// Decode input data
+    /// Decode input data.
     ///
-    /// The decode function takes bitstream VVC data in the Annex-B
-    /// format, which is prefixed by 0x000001 or 0x00000001.
+    /// The decode function takes VVC bitstream data in the Annex-B format, which is prefixed by 0x000001 or 0x00000001.
     ///
     /// On success, it can optionally return a decoded frame, but may also
     /// not return anything, for example if it needs more data.
@@ -163,10 +167,10 @@ impl Decoder {
         Ok(Frame::from_raw(self, frame))
     }
 
-    /// Flush the decoder
+    /// Flush the decoder.
     ///
-    /// It will flush the internally stored decoder state, returning frames
-    /// until it returns Ok(None).
+    /// It will flush the remaining frames in the decoder and clear its internal state. Frames are returned until
+    /// a Ok(None) is returned which signals end-of-stream.
     pub fn flush(&mut self) -> Result<Option<Frame>, Error> {
         let mut frame: *mut vvdecFrame = ptr::null_mut();
 
@@ -195,24 +199,27 @@ impl DecoderBuilder {
         Self::default()
     }
 
-    /// Construct a Decoder instance.
+    /// Build a Decoder instance.
     pub fn build(&mut self) -> Result<Decoder, Error> {
         Decoder::with_params(&mut self.params)
     }
 
-    /// Set number of threads.
+    /// Set the number of threads.
     pub fn num_threads(&mut self, num_threads: i32) -> &mut Self {
         self.params.threads = num_threads;
         self
     }
 
-    /// Set number of threads for parsing.
+    /// Set the number of threads for parsing.
     pub fn num_parse_threads(&mut self, num_parse_threads: i32) -> &mut Self {
         self.params.parseThreads = num_parse_threads;
         self
     }
 
-    /// Remove padding in the decoded buffers.
+    /// Remove padding in the decoded frames.
+    ///
+    /// This option may be useful if downstream users of the frames require that frames have the stride equal to
+    /// the width. However, it implies an extra copy internally, so it has a performance impact.
     pub fn remove_padding(&mut self, remove_padding: bool) -> &mut Self {
         self.params.removePadding = remove_padding;
         self
@@ -229,7 +236,7 @@ impl Default for DecoderBuilder {
     }
 }
 
-/// An error that has occurred when using a Decoder.
+/// An error that has occurred in VVdeC.
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum Error {
     /// Failed to open decoder.
@@ -262,7 +269,7 @@ pub enum Error {
     /// Decoder needs more input and cannot return a picture.
     #[error("decoder needs more input and cannot return a picture")]
     TryAgain,
-    /// Unknown error
+    /// Unknown error.
     #[error("unknown error with code {0}")]
     Unknown(i32),
 }
@@ -286,7 +293,7 @@ impl Error {
     }
 }
 
-/// A raw frame returned by the Decoder.
+/// A decoded frame.
 #[derive(Debug, Clone)]
 pub struct Frame {
     inner: Arc<InnerFrame>,
@@ -299,52 +306,54 @@ impl Frame {
         })
     }
 
-    /// Get plane from the specified component.
+    /// Get the plane from the specified component.
     pub fn plane(&self, component: PlaneComponent) -> Option<Plane> {
         Plane::new(self.clone(), component)
     }
 
-    /// Get number of planes.
+    /// Get the number of planes.
     pub fn num_planes(&self) -> u32 {
         self.inner.numPlanes
     }
 
-    /// Get frame width.
+    /// Get the frame's width.
     pub fn width(&self) -> u32 {
         self.inner.width
     }
 
-    /// Get frame height.
+    /// Get the frame's height.
     pub fn height(&self) -> u32 {
         self.inner.height
     }
 
-    /// Get bit depth.
+    /// Get the frame's bit depth.
     pub fn bit_depth(&self) -> u32 {
         self.inner.bitDepth
     }
 
-    /// Sequence number of the frame.
+    /// Get the sequence number of the frame.
     pub fn sequence_number(&self) -> u64 {
         self.inner.sequenceNumber
     }
 
-    /// Get composition timestamp.
+    /// Get the frames's composition timestamp.
+    ///
+    /// This will match the cts that was set in the matching AccessUnit containing this frame.
     pub fn cts(&self) -> Option<u64> {
         self.inner.ctsValid.then_some(self.inner.cts)
     }
 
-    /// Get frame format.
+    /// Get the frame's format.
     pub fn frame_format(&self) -> FrameFormat {
         FrameFormat::new(self.inner.frameFormat)
     }
 
-    /// Get color format.
+    /// Get the frame's color format.
     pub fn color_format(&self) -> ColorFormat {
         ColorFormat::new(self.inner.colorFormat)
     }
 
-    /// Get picture attributes.
+    /// Get the frames's picture attributes.
     pub fn picture_attributes(&self) -> Option<PictureAttributes> {
         ptr::NonNull::new(self.inner.picAttributes).map(PictureAttributes::new)
     }
@@ -386,7 +395,7 @@ impl Drop for InnerFrame {
 
 /// A plane from a Frame.
 ///
-/// A plane can only be created via Frame::plane.
+/// A plane can only be created via Frame::plane().
 #[derive(Debug)]
 pub struct Plane {
     frame: Frame,
@@ -403,22 +412,22 @@ impl Plane {
         self.frame.inner.planes[self.component.to_ffi() as usize]
     }
 
-    /// Get plane width.
+    /// Get the plane's width.
     pub fn width(&self) -> u32 {
         self.inner().width
     }
 
-    /// Get plane height.
+    /// Get the plane's height.
     pub fn height(&self) -> u32 {
         self.inner().height
     }
 
-    /// Get plane stride, in bytes.
+    /// Get the plane's stride, in bytes.
     pub fn stride(&self) -> u32 {
         self.inner().stride
     }
 
-    /// Get number of bytes per sample.
+    /// Get the number of bytes per sample.
     pub fn bytes_per_sample(&self) -> u32 {
         self.inner().bytesPerSample
     }
@@ -449,11 +458,11 @@ unsafe impl Sync for Plane {}
 /// A plane component
 #[derive(Debug, Clone, Copy)]
 pub enum PlaneComponent {
-    /// The luma component
+    /// The Luma component
     Y,
-    /// The U chroma component
+    /// The U Chroma component
     U,
-    /// The V chroma component
+    /// The V Chroma component
     V,
 }
 
@@ -633,35 +642,35 @@ impl SliceType {
 /// Frame format.
 #[derive(Debug)]
 pub enum FrameFormat {
-    /// Invalid
+    /// Invalid.
     Invalid,
-    /// Progressive
+    /// Progressive.
     Progressive,
-    /// Top-field
+    /// Top-field.
     TopField,
-    /// Bottom-field
+    /// Bottom-field.
     BottomField,
-    /// Top-bottom
+    /// Top-bottom.
     TopBottom,
-    /// Bottom-top
+    /// Bottom-top.
     BottomTop,
-    /// Top-bottom-top
+    /// Top-bottom-top.
     TopBottomTop,
-    /// Bottom-top-botttom
+    /// Bottom-top-botttom.
     BottomTopBotttom,
-    /// Frame-double
+    /// Frame-double.
     FrameDouble,
-    /// Frame-triple
+    /// Frame-triple.
     FrameTriple,
-    /// Top paired with previous
+    /// Top paired with previous.
     TopPairedWithPrevious,
-    /// Bottom paired with previous
+    /// Bottom paired with previous.
     BottomPairedWithPrevious,
-    /// Top paired with next
+    /// Top paired with next.
     TopPairedWithNext,
-    /// Bottom paired with next
+    /// Bottom paired with next.
     BottomPairedWithNext,
-    /// Unknown
+    /// Unknown.
     Unknown(i32),
 }
 
@@ -776,7 +785,7 @@ impl SampleAspectRatio {
 /// VUI parameters.
 #[derive(Debug)]
 pub struct Vui {
-    /// Sample aspect ratio
+    /// Sample aspect ratio.
     pub sample_aspect_ratio: Option<SampleAspectRatio>,
     /// Is sample aspect ratio constant?
     pub is_aspect_ratio_constant: bool,

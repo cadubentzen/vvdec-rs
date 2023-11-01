@@ -57,7 +57,7 @@ impl Drop for InnerDecoder {
 }
 
 /// Access unit for VVC bitstream data.
-pub struct AccessUnit<A: AsRef<[u8]>> {
+pub struct AccessUnit<A> {
     /// The payload data.
     pub payload: A,
     /// Composition timestamp.
@@ -68,7 +68,7 @@ pub struct AccessUnit<A: AsRef<[u8]>> {
     pub is_random_access_point: bool,
 }
 
-impl<A: AsRef<[u8]>> AccessUnit<A> {
+impl<A> AccessUnit<A> {
     /// Create a new access unit with no cts, dts and not a random access point.
     pub fn new(payload: A) -> Self {
         Self {
@@ -80,8 +80,8 @@ impl<A: AsRef<[u8]>> AccessUnit<A> {
     }
 }
 
-impl<'a> From<&'a [u8]> for AccessUnit<&'a [u8]> {
-    fn from(value: &'a [u8]) -> Self {
+impl<A> From<A> for AccessUnit<A> {
+    fn from(value: A) -> Self {
         Self::new(value)
     }
 }
@@ -114,10 +114,11 @@ impl Decoder {
     ///
     /// On success, it can optionally return a decoded frame, but may also
     /// not return anything, for example if it needs more data.
-    pub fn decode<A: AsRef<[u8]>>(
-        &mut self,
-        access_unit: impl Into<AccessUnit<A>>,
-    ) -> Result<Option<Frame>, Error> {
+    pub fn decode<A, I>(&mut self, access_unit: I) -> Result<Option<Frame>, Error>
+    where
+        A: AsRef<[u8]>,
+        I: Into<AccessUnit<A>>,
+    {
         let AccessUnit {
             payload,
             cts,

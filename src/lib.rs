@@ -94,7 +94,7 @@ impl<A> AccessUnit<A> {
     }
 }
 
-impl<A> From<A> for AccessUnit<A> {
+impl<A: AsRef<[u8]>> From<A> for AccessUnit<A> {
     fn from(value: A) -> Self {
         Self::new(value)
     }

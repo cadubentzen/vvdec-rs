@@ -14,15 +14,15 @@ fn basic() -> Result<(), Error> {
 
     assert_matches!(decoder.decode(DATA), Err(Error::TryAgain));
 
-    let frame1 = decoder.flush()?;
+    let frame1 = decoder.flush()?.unwrap();
     let _plane = frame1.plane(PlaneComponent::Y).unwrap();
     let _plane = frame1.plane(PlaneComponent::U).unwrap();
     let _plane = frame1.plane(PlaneComponent::V).unwrap();
 
-    let _frame2 = decoder.flush()?;
-    let _frame3 = decoder.flush()?;
+    let _frame2 = decoder.flush()?.unwrap();
+    let _frame3 = decoder.flush()?.unwrap();
 
-    assert_matches!(decoder.flush(), Err(Error::Eof));
+    assert_matches!(decoder.flush(), Ok(None));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));
 
     Ok(())
@@ -52,15 +52,15 @@ fn test_split_data() -> Result<(), Error> {
         let _ = decoder.decode(slice);
     }
 
-    let frame1 = decoder.flush()?;
+    let frame1 = decoder.flush()?.unwrap();
     let _plane = frame1.plane(PlaneComponent::Y).unwrap();
     let _plane = frame1.plane(PlaneComponent::U).unwrap();
     let _plane = frame1.plane(PlaneComponent::V).unwrap();
 
-    let _frame2 = decoder.flush()?;
-    let _frame3 = decoder.flush()?;
+    let _frame2 = decoder.flush()?.unwrap();
+    let _frame3 = decoder.flush()?.unwrap();
 
-    assert_matches!(decoder.flush(), Err(Error::Eof));
+    assert_matches!(decoder.flush(), Ok(None));
     assert_matches!(decoder.flush(), Err(Error::RestartRequired));
 
     Ok(())
@@ -82,19 +82,19 @@ fn test_decode_after_flush() -> Result<(), Error> {
     let _ = decoder.decode(frame1);
     let _ = decoder.decode(frame2);
 
-    assert!(decoder.flush().is_ok());
-    assert!(decoder.flush().is_ok());
-    assert_eq!(decoder.flush().unwrap_err(), Error::Eof);
+    assert!(decoder.flush()?.is_some());
+    assert!(decoder.flush()?.is_some());
+    assert!(decoder.flush()?.is_none());
 
     let _ = decoder.decode(sps);
     let _ = decoder.decode(pps);
     let _ = decoder.decode(frame1);
     let _ = decoder.decode(frame2);
     let _ = decoder.decode(frame3);
-    assert!(decoder.flush().is_ok());
-    assert!(decoder.flush().is_ok());
-    assert!(decoder.flush().is_ok());
-    assert_eq!(decoder.flush().unwrap_err(), Error::Eof);
+    assert!(decoder.flush()?.is_some());
+    assert!(decoder.flush()?.is_some());
+    assert!(decoder.flush()?.is_some());
+    assert!(decoder.flush()?.is_none());
 
     Ok(())
 }
@@ -104,13 +104,13 @@ fn test_change_resolution() -> Result<(), Error> {
     let mut decoder = Decoder::new()?;
 
     let _ = decoder.decode(DATA);
-    let first_frame = decoder.flush().unwrap();
+    let first_frame = decoder.flush()?.unwrap();
     assert_eq!(first_frame.width(), 320);
     assert_eq!(first_frame.height(), 240);
 
     const SECOND_DATA: &[u8] = include_bytes!("../tests/short2.vvc");
     let _ = decoder.decode(SECOND_DATA);
-    let first_frame = decoder.flush().unwrap();
+    let first_frame = decoder.flush()?.unwrap();
     assert_eq!(first_frame.width(), 160);
     assert_eq!(first_frame.height(), 120);
 

@@ -48,18 +48,12 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    loop {
-        match decoder.flush() {
-            Ok(frame) => {
-                let y4m_encoder = y4m_encoder.get_or_insert_with(|| {
-                    let writer = std::mem::replace(&mut writer, Box::new(std::io::sink()));
-                    create_y4m_encoder(&frame, writer).expect("could not create y4m encoder")
-                });
-                write_frame(y4m_encoder, frame)?;
-            }
-            Err(Error::Eof) => break,
-            Err(err) => return Err(err.into()),
-        }
+    while let Some(frame) = decoder.flush()? {
+        let y4m_encoder = y4m_encoder.get_or_insert_with(|| {
+            let writer = std::mem::replace(&mut writer, Box::new(std::io::sink()));
+            create_y4m_encoder(&frame, writer).expect("could not create y4m encoder")
+        });
+        write_frame(y4m_encoder, frame)?;
     }
 
     Ok(())

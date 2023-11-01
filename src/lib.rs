@@ -2,30 +2,39 @@
 
 //! # Rust bindings for VVdeC
 //!
-//! This crate provides safe Rust bindings for VVdeC.
+//! This crate provides Safe Rust bindings for VVdeC.
 //!
-//! ```
+//! A simple VVC decoder application can be implemented using the snippet below as a starting point:
+//!
+//! ```no_run
 //! use vvdec::{Decoder, Error, Frame, PlaneComponent};
 //!
-//! let mut decoder = Decoder::new().unwrap();
-//! let data: &[u8] = &[0u8; 64]; // Replace this with actual VVC bitstream data.
+//! fn main() -> Result<(), Error> {
+//!     // You can also use Decoder::builder() if customizations are needed.
+//!     let mut decoder = Decoder::new()?;
 //!
-//! if let Ok(Some(frame)) = decoder.decode(data) {
-//!     process_frame(frame);
+//!     // Process incoming VVC input bitsteram
+//!     while let Some(data) = get_input_data() {
+//!         decoder.decode(data)?.map(process_frame);
+//!     }
+//!
+//!     // Flush at the end
+//!     while let Some(frame) = decoder.flush()? {
+//!         process_frame(frame);
+//!     }
+//!
+//!     Ok(())
 //! }
 //!
-//! // At the end, call flush until Eof
-//! loop {
-//!     match decoder.flush() {
-//!         Ok(frame) => process_frame(frame),
-//!         Err(Error::Eof) => break,
-//!         Err(err) => panic!("{err}"),
-//!     }
+//! fn get_input_data() -> Option<&'static [u8]> {
+//!     return Some(&[0; 64]); // Replace this with real VVC bitstream data.
 //! }
 //!
 //! fn process_frame(frame: Frame) {
+//!     // Use decoded frame
 //!     let y_plane = frame.plane(PlaneComponent::Y).unwrap();
 //!     let y_plane_data: &[u8] = y_plane.as_ref();
+//!     // ...
 //! }
 //! ```
 
@@ -151,30 +160,24 @@ impl Decoder {
             return Err(Error::new(ret));
         }
 
-        Ok(ptr::NonNull::new(frame).map(|f| Frame {
-            inner: Arc::new(InnerFrame::new(self.clone(), f)),
-        }))
+        Ok(Frame::from_raw(self, frame))
     }
 
     /// Flush the decoder
     ///
     /// It will flush the internally stored decoder state, returning frames
-    /// until it returns Err(Error::Eof), or fails with another error.
-    pub fn flush(&mut self) -> Result<Frame, Error> {
+    /// until it returns Ok(None).
+    pub fn flush(&mut self) -> Result<Option<Frame>, Error> {
         let mut frame: *mut vvdecFrame = ptr::null_mut();
 
         let ret = unsafe { vvdec_flush(self.inner.lock().unwrap().decoder.as_ptr(), &mut frame) };
 
-        if ret != vvdecErrorCodes_VVDEC_OK {
-            return Err(Error::new(ret));
+        #[allow(non_upper_case_globals)]
+        match ret {
+            vvdecErrorCodes_VVDEC_OK => Ok(Frame::from_raw(self, frame)),
+            vvdecErrorCodes_VVDEC_EOF => Ok(None),
+            _ => Err(Error::new(ret)),
         }
-
-        assert!(!frame.is_null());
-        Ok(Frame {
-            inner: Arc::new(InnerFrame::new(self.clone(), unsafe {
-                ptr::NonNull::new_unchecked(frame)
-            })),
-        })
     }
 }
 
@@ -259,9 +262,6 @@ pub enum Error {
     /// Decoder needs more input and cannot return a picture.
     #[error("decoder needs more input and cannot return a picture")]
     TryAgain,
-    /// End of file.
-    #[error("end of file")]
-    Eof,
     /// Unknown error
     #[error("unknown error with code {0}")]
     Unknown(i32),
@@ -281,7 +281,6 @@ impl Error {
             vvdecErrorCodes_VVDEC_ERR_RESTART_REQUIRED => RestartRequired,
             vvdecErrorCodes_VVDEC_ERR_CPU => Cpu,
             vvdecErrorCodes_VVDEC_TRY_AGAIN => TryAgain,
-            vvdecErrorCodes_VVDEC_EOF => Eof,
             _ => Unknown(code),
         }
     }
@@ -294,6 +293,12 @@ pub struct Frame {
 }
 
 impl Frame {
+    fn from_raw(decoder: &Decoder, raw_frame: *mut vvdecFrame) -> Option<Self> {
+        ptr::NonNull::new(raw_frame).map(|f| Frame {
+            inner: Arc::new(InnerFrame::new(decoder.clone(), f)),
+        })
+    }
+
     /// Get plane from the specified component.
     pub fn plane(&self, component: PlaneComponent) -> Option<Plane> {
         Plane::new(self.clone(), component)

@@ -14,3 +14,6 @@ vvdec-sys = { path = "./vvdec-sys", version = "0.3.4" }
 
 [workspace]
 members = ["vvdec-sys", "vvdecli"]
+
+[features]
+vendored = ["vvdec-sys/vendored"]

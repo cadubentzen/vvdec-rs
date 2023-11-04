@@ -12,3 +12,6 @@ repository = "https://github.com/cadubentzen/vvdec-rs"
 bindgen = "0.68"
 cmake = "0.1"
 pkg-config = "0.3"
+
+[features]
+vendored = []

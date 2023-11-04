@@ -21,27 +21,17 @@ mod build {
 fn main() {
     println!("cargo:rerun-if-changed=wrapper.h");
 
-    // Try to find vvdec in the system. Else, build vvdec from source.
-    let library = match pkg_config::Config::new()
+    let vendored = env::var("CARGO_FEATURE_VENDORED").is_ok() || env::var("DOCS_RS").is_ok();
+    if vendored {
+        let pkg_config_dir = build::build_from_src();
+        env::set_var("PKG_CONFIG_PATH", pkg_config_dir.as_os_str());
+        println!("cargo:rerun-if-changed=vvdec");
+    }
+
+    let library = pkg_config::Config::new()
         .atleast_version(VVDEC_VERSION)
         .probe("libvvdec")
-    {
-        Ok(library) => library,
-        Err(_) => {
-            if env::var("VVDEC_SYS_BUILD_DEP_FROM_SRC").is_err() && env::var("DOCS_RS").is_err() {
-                panic!(
-                    "libvvdec not found in the system. To allow building it from source, \
-                    set environment variable VVDEC_SYS_BUILD_DEP_FROM_SRC=1"
-                );
-            }
-            let pkg_config_dir = build::build_from_src();
-            env::set_var("PKG_CONFIG_PATH", pkg_config_dir.as_os_str());
-            pkg_config::Config::new()
-                .atleast_version(VVDEC_VERSION)
-                .probe("libvvdec")
-                .unwrap()
-        }
-    };
+        .expect("libvvdec not found in the system. To allow building it from source, use the \"vendored\" feature");
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")

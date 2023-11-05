@@ -17,3 +17,6 @@ y4m = "0.8"
 
 [dev-dependencies]
 assert_cmd = "2"
+
+[features]
+vendored = ["vvdec/vendored"]

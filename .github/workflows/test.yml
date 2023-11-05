@@ -24,4 +24,4 @@ jobs:
         with:
           imageName: ghcr.io/cadubentzen/vvdec-rs-devcontainer
           runCmd: |
-            cargo test --workspace --all-features
+            cargo test --workspace

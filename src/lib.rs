@@ -170,7 +170,9 @@ impl Decoder {
     /// Flush the decoder.
     ///
     /// It will flush the remaining frames in the decoder and clear its internal state. Frames are returned until
-    /// a Ok(None) is returned which signals end-of-stream.
+    /// a `Ok(None)` is returned which signals end-of-stream.
+    ///
+    /// Calling flush before frames are pushed or after a `Ok(None)` returns `Err(RestartRequired)`.
     pub fn flush(&mut self) -> Result<Option<Frame>, Error> {
         let mut frame: *mut vvdecFrame = ptr::null_mut();
 

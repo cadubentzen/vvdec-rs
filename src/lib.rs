@@ -160,11 +160,11 @@ impl Decoder {
             )
         };
 
-        if ret != vvdecErrorCodes_VVDEC_OK {
-            return Err(Error::new(ret));
+        #[allow(non_upper_case_globals)]
+        match ret {
+            vvdecErrorCodes_VVDEC_OK => Ok(Frame::from_raw(self, frame)),
+            _ => Err(Error::new(ret)),
         }
-
-        Ok(Frame::from_raw(self, frame))
     }
 
     /// Flush the decoder.

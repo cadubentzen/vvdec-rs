@@ -10,7 +10,7 @@ exclude = ["tests/", ".devcontainer/", ".github/"]
 
 [dependencies]
 thiserror = "1"
-vvdec-sys = { path = "./vvdec-sys", version = "0.3.4" }
+vvdec-sys = { path = "./vvdec-sys", version = "0.4.0" }
 
 [workspace]
 members = ["vvdec-sys", "vvdecli"]

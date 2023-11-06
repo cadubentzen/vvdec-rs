@@ -37,6 +37,13 @@
 //!     // ...
 //! }
 //! ```
+//!
+//! ## Vendored build
+//!
+//! To build VVdeC from source along with this crate, enable the `vendored` flag (requires CMake in your system):
+//! ```bash
+//! $ cargo add vvdec --features vendored
+//! ```
 
 use std::{
     mem,

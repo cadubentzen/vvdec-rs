@@ -9,7 +9,7 @@ license = "BSD-3-Clause-Clear"
 repository = "https://github.com/cadubentzen/vvdec-rs"
 
 [build-dependencies]
-bindgen = "0.68"
+bindgen = "0.69"
 pkg-config = "0.3"
 cmake = { version = "0.1", optional = true }
 

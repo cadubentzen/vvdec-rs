@@ -1,31 +1,28 @@
-use std::env;
 use std::path::PathBuf;
 
 const VVDEC_VERSION: &str = "2.1.2";
 
-mod build {
+#[cfg(feature = "vendored")]
+mod vendored {
     use super::*;
-
     use std::str::FromStr;
 
-    pub fn build_from_src() -> PathBuf {
+    pub fn build_from_src() {
         let source = PathBuf::from_str("vvdec").expect("submodule is initialized");
         let install_dir = cmake::Config::new(source)
             .define("VVDEC_TOPLEVEL_OUTPUT_DIRS", "OFF")
             .build();
-        install_dir.join("lib/pkgconfig")
+        let pkg_config_dir = install_dir.join("lib/pkgconfig");
+        std::env::set_var("PKG_CONFIG_PATH", pkg_config_dir.as_os_str());
+        println!("cargo:rerun-if-changed=vvdec");
     }
 }
 
 fn main() {
     println!("cargo:rerun-if-changed=wrapper.h");
 
-    let vendored = env::var("CARGO_FEATURE_VENDORED").is_ok() || env::var("DOCS_RS").is_ok();
-    if vendored {
-        let pkg_config_dir = build::build_from_src();
-        env::set_var("PKG_CONFIG_PATH", pkg_config_dir.as_os_str());
-        println!("cargo:rerun-if-changed=vvdec");
-    }
+    #[cfg(feature = "vendored")]
+    vendored::build_from_src();
 
     let library = pkg_config::Config::new()
         .atleast_version(VVDEC_VERSION)

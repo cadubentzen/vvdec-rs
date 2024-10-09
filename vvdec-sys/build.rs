@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-const VVDEC_VERSION: &str = "2.1.2";
+const VVDEC_VERSION: &str = "2.3.0";
 
 #[cfg(feature = "vendored")]
 mod vendored {

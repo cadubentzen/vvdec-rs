@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     let mut chunked_reader = ChunkedReader::new(reader);
-    let mut decoder = Decoder::builder().remove_padding(true).build()?;
+    let mut decoder = Decoder::builder().build()?;
 
     let mut y4m_encoder = None;
     while let Some(chunk) = chunked_reader.next_chunk()? {

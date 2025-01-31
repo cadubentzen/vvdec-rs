@@ -1,19 +1,25 @@
+[workspace]
+members = ["vvdec-sys", "vvdecli"]
+
+[workspace.package]
+rust-version = "1.80"
+edition = "2021"
+repository = "https://github.com/cadubentzen/vvdec-rs"
+
 [package]
 name = "vvdec"
 version = "0.5.1"
-edition = "2021"
 authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 description = "Rust bindings for VVdeC"
 license = "BSD-3-Clause-Clear"
-repository = "https://github.com/cadubentzen/vvdec-rs"
 exclude = ["tests/", ".devcontainer/", ".github/"]
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [dependencies]
-thiserror = "1"
+thiserror = "2"
 vvdec-sys = { path = "./vvdec-sys", version = "0.4.1" }
-
-[workspace]
-members = ["vvdec-sys", "vvdecli"]
 
 [features]
 vendored = ["vvdec-sys/vendored"]

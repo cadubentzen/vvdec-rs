@@ -1,15 +1,16 @@
 [package]
 name = "vvdec-sys"
 version = "0.4.1"
-edition = "2021"
 links = "vvdec"
 authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 description = "Rust unsafe bindings for VVdeC"
 license = "BSD-3-Clause-Clear"
-repository = "https://github.com/cadubentzen/vvdec-rs"
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [build-dependencies]
-bindgen = "0.68"
+bindgen = "0.71"
 pkg-config = "0.3"
 cmake = { version = "0.1", optional = true }
 

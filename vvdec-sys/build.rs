@@ -37,7 +37,7 @@ fn main() {
                 .iter()
                 .map(|path| format!("-I{}", path.to_string_lossy())),
         )
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .allowlist_type("vvdec.*")
         .allowlist_function("vvdec_.*")
         .allowlist_var("VVDEC.*")

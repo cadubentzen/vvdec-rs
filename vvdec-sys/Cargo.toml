@@ -1,6 +1,6 @@
 [package]
 name = "vvdec-sys"
-version = "0.4.1"
+version = "0.5.0"
 links = "vvdec"
 authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
 description = "Rust unsafe bindings for VVdeC"

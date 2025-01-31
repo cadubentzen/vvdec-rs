@@ -91,12 +91,33 @@ fn convert_colorspace(color_format: ColorFormat, bit_depth: u32) -> Colorspace {
     }
 }
 
+fn remove_padding(frame: Frame) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let y_plane = frame.plane(PlaneComponent::Y).unwrap();
+    let u_plane = frame.plane(PlaneComponent::U).unwrap();
+    let v_plane = frame.plane(PlaneComponent::V).unwrap();
+
+    let y_plane_data = extract_plane_data(&y_plane);
+    let u_plane_data = extract_plane_data(&u_plane);
+    let v_plane_data = extract_plane_data(&v_plane);
+
+    (y_plane_data, u_plane_data, v_plane_data)
+}
+
+fn extract_plane_data(plane: &vvdec::Plane) -> Vec<u8> {
+    let mut plane_data = Vec::with_capacity((plane.width() * plane.height() * plane.bytes_per_sample()) as usize);
+    for row in 0..plane.height() {
+        let start = (row * plane.stride()) as usize;
+        let end = start + (plane.width() * plane.bytes_per_sample()) as usize;
+        plane_data.extend_from_slice(&plane.as_ref()[start..end]);
+    }
+    plane_data
+}
+
 fn write_frame(encoder: &mut y4m::Encoder<impl Write>, frame: Frame) -> anyhow::Result<()> {
+    let (y_plane, u_plane, v_plane) = remove_padding(frame);
     encoder.write_frame(&y4m::Frame::new(
         [
-            frame.plane(PlaneComponent::Y).as_ref().unwrap(),
-            frame.plane(PlaneComponent::U).as_ref().unwrap(),
-            frame.plane(PlaneComponent::V).as_ref().unwrap(),
+            y_plane.as_slice(), u_plane.as_slice(), v_plane.as_slice(),
         ],
         None,
     ))?;

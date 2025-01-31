@@ -10,7 +10,7 @@ const DATA: &[u8] = include_bytes!("../tests/short.vvc");
 
 #[test]
 fn basic() -> Result<(), Error> {
-    let mut decoder = Decoder::builder().remove_padding(true).build()?;
+    let mut decoder = Decoder::builder().build()?;
 
     assert_matches!(decoder.decode(DATA), Err(Error::TryAgain));
 

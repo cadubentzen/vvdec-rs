@@ -220,17 +220,8 @@ impl DecoderBuilder {
     }
 
     /// Set the number of threads for parsing.
-    pub fn num_parse_threads(&mut self, num_parse_threads: i32) -> &mut Self {
-        self.params.parseThreads = num_parse_threads;
-        self
-    }
-
-    /// Remove padding in the decoded frames.
-    ///
-    /// This option may be useful if downstream users of the frames require that frames have the stride equal to
-    /// the width. However, it implies an extra copy internally, so it has a performance impact.
-    pub fn remove_padding(&mut self, remove_padding: bool) -> &mut Self {
-        self.params.removePadding = remove_padding;
+    pub fn parse_delay(&mut self, parse_delay: i32) -> &mut Self {
+        self.params.parseDelay = parse_delay;
         self
     }
 }

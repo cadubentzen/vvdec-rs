@@ -699,7 +699,7 @@ impl FrameFormat {
 }
 
 /// Color format.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ColorFormat {
     /// Invalid.
     Invalid,

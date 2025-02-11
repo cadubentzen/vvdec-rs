@@ -2,9 +2,9 @@
 name = "vvdec-sys"
 version = "0.5.0"
 links = "vvdec"
-authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
+authors.workspace = true
 description = "Rust unsafe bindings for VVdeC"
-license = "BSD-3-Clause-Clear"
+license.workspace = true
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true

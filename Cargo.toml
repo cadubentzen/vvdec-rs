@@ -5,13 +5,15 @@ members = ["vvdec-sys", "vvdecli"]
 rust-version = "1.80"
 edition = "2021"
 repository = "https://github.com/cadubentzen/vvdec-rs"
+authors = ["Carlos Bentzen <cadubentzen@igalia.com>"]
+license = "BSD-3-Clause-Clear"
 
 [package]
 name = "vvdec"
 version = "0.6.1"
-authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
+authors.workspace = true
 description = "Rust bindings for VVdeC"
-license = "BSD-3-Clause-Clear"
+license.workspace = true
 exclude = ["tests/", ".devcontainer/", ".github/"]
 rust-version.workspace = true
 edition.workspace = true

@@ -1,11 +1,11 @@
 [package]
 name = "vvdecli"
 version = "0.6.0"
-edition = "2021"
-authors = ["Carlos Bentzen <cadubentzen@gmail.com>"]
+edition.workspace = true
+authors.workspace = true
 description = "CLI application for decoding VVC bitstreams"
-license = "BSD-3-Clause-Clear"
-repository = "https://github.com/cadubentzen/vvdec-rs"
+license.workspace = true
+repository.workspace = true
 exclude = ["tests/"]
 
 [dependencies]

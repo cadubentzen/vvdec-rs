@@ -209,7 +209,7 @@ impl DecoderBuilder {
     }
 
     /// Build a Decoder instance.
-    pub fn build(&mut self) -> Result<Decoder, Error> {
+    pub fn build(mut self) -> Result<Decoder, Error> {
         Decoder::with_params(&mut self.params)
     }
 

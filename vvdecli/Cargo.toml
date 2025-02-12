@@ -20,3 +20,6 @@ assert_cmd = "2"
 
 [features]
 vendored = ["vvdec/vendored"]
+
+[package.metadata.docs.rs]
+features = ["vendored"]

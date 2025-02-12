@@ -25,3 +25,6 @@ vvdec-sys = { path = "./vvdec-sys", version = "0.5.1" }
 
 [features]
 vendored = ["vvdec-sys/vendored"]
+
+[package.metadata.docs.rs]
+features = ["vendored"]

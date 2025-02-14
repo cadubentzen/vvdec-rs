@@ -816,3 +816,14 @@ impl Vui {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decoder_builder() {
+        DecoderBuilder::new().num_threads(4).build().unwrap();
+    }
+}

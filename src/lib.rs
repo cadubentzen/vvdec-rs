@@ -456,7 +456,7 @@ unsafe impl Send for Plane {}
 unsafe impl Sync for Plane {}
 
 /// A plane component
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlaneComponent {
     /// The Luma component
     Y,
@@ -531,7 +531,7 @@ impl PictureAttributes {
 }
 
 /// NAL type.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NalType {
     /// Coded slice trail.
     CodedSliceTrail,
@@ -614,7 +614,7 @@ impl NalType {
 }
 
 /// Slice type.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SliceType {
     /// I-slice.
     I,
@@ -640,7 +640,7 @@ impl SliceType {
 }
 
 /// Frame format.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FrameFormat {
     /// Invalid.
     Invalid,
@@ -756,7 +756,7 @@ impl Hrd {
 }
 
 /// Sample Aspect Ratio.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SampleAspectRatio {
     /// Indicator mode.
     Indicator(i32),

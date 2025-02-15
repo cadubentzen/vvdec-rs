@@ -26,13 +26,21 @@ fn main() {
     #[cfg(docsrs)]
     std::env::set_var("SYSTEM_DEPS_LIBVVDEC_BUILD_INTERNAL", "always");
 
-    system_deps::Config::new()
+    let dependencies = system_deps::Config::new()
         .add_build_internal("libvvdec", vendored::build_from_src)
         .probe()
         .unwrap();
 
+    let library = dependencies.get_by_name("libvvdec").unwrap();
+
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
+        .clang_args(
+            library
+                .include_paths
+                .iter()
+                .map(|path| format!("-I{}", path.to_string_lossy())),
+        )
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .allowlist_type("vvdec.*")
         .allowlist_function("vvdec_.*")

@@ -23,7 +23,7 @@ mod vendored {
 fn main() {
     println!("cargo:rerun-if-changed=wrapper.h");
 
-    #[cfg(docsrs)]
+    #[cfg(feature = "docsrs")]
     std::env::set_var("SYSTEM_DEPS_LIBVVDEC_BUILD_INTERNAL", "always");
 
     let dependencies = system_deps::Config::new()

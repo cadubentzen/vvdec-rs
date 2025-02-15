@@ -17,3 +17,9 @@ y4m = "0.8"
 
 [dev-dependencies]
 assert_cmd = "2"
+
+[features]
+docsrs = ["vvdec/docsrs"]
+
+[package.metadata.docs.rs]
+features = ["docsrs"]

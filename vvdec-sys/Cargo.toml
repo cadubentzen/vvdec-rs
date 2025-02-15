@@ -17,5 +17,8 @@ system-deps = "7"
 [package.metadata.system-deps]
 libvvdec = "3.0"
 
+[features]
+docsrs = []
+
 [package.metadata.docs.rs]
-rustc-args = ["--cfg", "docsrs"]
+features = ["docsrs"]

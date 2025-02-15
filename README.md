@@ -11,7 +11,7 @@ Rust bindings for [VVdeC](https://github.com/fraunhoferhhi/vvdec).
 
 ## Installing the CLI
 
-In order to build, either VVdeC >= 2.1.2 needs to be installed and be found via pkg-config, or the `vendored` feature needs to be enabled to build VVdeC from source (which requires CMake). On macOS, VVdeC can be installed with `brew install vvdec`.
+In order to build, either VVdeC >= 3.0 needs to be installed and be found via pkg-config, or a VVdeC will be compiled while building vvdec-sys, which requires CMake.
 
 Then, the CLI app can be installed with `cargo install vvdecli`.
 

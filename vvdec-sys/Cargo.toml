@@ -14,8 +14,5 @@ bindgen = "0.71"
 cmake = "0.1"
 system-deps = "7"
 
-[features]
-vendored = [] # Deprecated: to be removed in the next API break
-
 [package.metadata.system-deps]
 libvvdec = "3.0"

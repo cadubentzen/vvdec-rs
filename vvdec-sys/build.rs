@@ -23,6 +23,9 @@ mod vendored {
 fn main() {
     println!("cargo:rerun-if-changed=wrapper.h");
 
+    #[cfg(docsrs)]
+    std::env::set_var("SYSTEM_DEPS_LIBVVDEC_BUILD_INTERNAL", "always");
+
     system_deps::Config::new()
         .add_build_internal("libvvdec", vendored::build_from_src)
         .probe()

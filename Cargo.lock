@@ -618,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "vvdec-sys"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "bindgen",
  "cmake",

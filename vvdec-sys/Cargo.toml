@@ -1,6 +1,6 @@
 [package]
 name = "vvdec-sys"
-version = "0.5.1"
+version = "0.5.2"
 links = "vvdec"
 authors.workspace = true
 description = "Rust unsafe bindings for VVdeC"

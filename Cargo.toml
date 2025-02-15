@@ -10,7 +10,7 @@ license = "BSD-3-Clause-Clear"
 
 [package]
 name = "vvdec"
-version = "0.6.3"
+version = "0.6.4"
 authors.workspace = true
 description = "Rust bindings for VVdeC"
 license.workspace = true
@@ -21,4 +21,4 @@ repository.workspace = true
 
 [dependencies]
 thiserror = "2"
-vvdec-sys = { path = "./vvdec-sys", version = "0.5.1" }
+vvdec-sys = { path = "./vvdec-sys", version = "0.5.2" }

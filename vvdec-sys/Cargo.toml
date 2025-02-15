@@ -11,11 +11,11 @@ repository.workspace = true
 
 [build-dependencies]
 bindgen = "0.71"
-pkg-config = "0.3"
-cmake = { version = "0.1", optional = true }
+cmake = "0.1"
+system-deps = "7"
 
 [features]
-vendored = ["dep:cmake"]
+vendored = [] # Deprecated: to be removed in the next API break
 
-[package.metadata.docs.rs]
-features = ["vendored"]
+[package.metadata.system-deps]
+libvvdec = "3.0"

@@ -11,7 +11,7 @@ exclude = ["tests/"]
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-thiserror = "1"
+thiserror = "2"
 vvdec = { path = "..", version = "0.6.6" }
 y4m = "0.8"
 

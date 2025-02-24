@@ -266,6 +266,9 @@ pub enum Error {
     /// Decoder needs more input and cannot return a picture.
     #[error("decoder needs more input and cannot return a picture")]
     TryAgain,
+    /// End of file.
+    #[error("end of file")]
+    Eof,
     /// Unknown error.
     #[error("unknown error with code {0}")]
     Unknown(i32),
@@ -285,6 +288,7 @@ impl Error {
             vvdecErrorCodes_VVDEC_ERR_RESTART_REQUIRED => RestartRequired,
             vvdecErrorCodes_VVDEC_ERR_CPU => Cpu,
             vvdecErrorCodes_VVDEC_TRY_AGAIN => TryAgain,
+            vvdecErrorCodes_VVDEC_EOF => Eof,
             _ => Unknown(code),
         }
     }

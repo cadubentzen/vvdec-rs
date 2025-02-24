@@ -38,10 +38,12 @@ fn split_data(data: &[u8]) -> Vec<&[u8]> {
         .collect();
     indices.push(DATA.len());
 
-    indices
+    let mut chunks: Vec<&[u8]> = indices
         .windows(2)
         .map(|pair| &data[pair[0]..pair[1]])
-        .collect()
+        .collect();
+    chunks.push(&data[indices[indices.len() - 1]..]);
+    chunks
 }
 
 #[test]

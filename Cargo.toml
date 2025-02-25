@@ -10,7 +10,7 @@ license = "BSD-3-Clause-Clear"
 
 [package]
 name = "vvdec"
-version = "0.6.7"
+version = "0.6.8"
 authors.workspace = true
 description = "Rust bindings for VVdeC"
 license.workspace = true

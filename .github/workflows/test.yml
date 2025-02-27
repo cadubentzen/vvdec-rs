@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  test:
+  test-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (GitHub)
@@ -25,3 +25,27 @@ jobs:
           imageName: ghcr.io/cadubentzen/vvdec-rs-devcontainer
           runCmd: |
             cargo test --workspace
+
+  test-windows:
+    runs-on: windows-latest
+    env:
+      SYSTEM_DEPS_LIBVVDEC_BUILD_INTERNAL: auto
+    steps:
+      - name: Checkout (GitHub)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install pkg-config using Chocolatey
+        run: choco install pkgconfiglite -y
+
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Run tests
+        run: cargo test --workspace

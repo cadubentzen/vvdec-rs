@@ -45,6 +45,9 @@ fn main() {
         .allowlist_type("vvdec.*")
         .allowlist_function("vvdec_.*")
         .allowlist_var("VVDEC.*")
+        // FIXME: this fixes build issue on Windows with MSVC.
+        // If we need to expose this type at some point, we'd need to fix it.
+        .blocklist_type("vvdecSEIDependentRapIndication")
         .generate()
         .expect("Unable to generate bindings");
 

@@ -12,9 +12,13 @@ mod vendored {
     ) -> Result<system_deps::Library, system_deps::BuildInternalClosureError> {
         println!("cargo:rerun-if-changed=vvdec");
         let source = PathBuf::from_str("vvdec").expect("submodule is initialized");
-        let install_dir = cmake::Config::new(source)
-            .define("VVDEC_TOPLEVEL_OUTPUT_DIRS", "OFF")
-            .build();
+        let mut config = cmake::Config::new(source);
+        config.define("VVDEC_TOPLEVEL_OUTPUT_DIRS", "OFF");
+        // https://github.com/rust-lang/cmake-rs/issues/178
+        #[cfg(target_os = "windows")]
+        config.profile("Release");
+
+        let install_dir = config.build();
         let pkg_dir = install_dir.join("lib/pkgconfig");
         system_deps::Library::from_internal_pkg_config(pkg_dir, lib, VVDEC_VERSION)
     }

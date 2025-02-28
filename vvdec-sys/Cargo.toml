@@ -10,7 +10,7 @@ edition.workspace = true
 repository.workspace = true
 
 [build-dependencies]
-bindgen = "0.71"
+bindgen = "0.70"
 cmake = "0.1"
 system-deps = "7"
 

@@ -405,7 +405,8 @@ pub struct Plane {
 
 impl Plane {
     fn new(frame: Frame, component: PlaneComponent) -> Option<Self> {
-        (component.to_ffi() < frame.num_planes()).then_some(Self { frame, component })
+        (component.to_ffi() < frame.num_planes().try_into().unwrap())
+            .then_some(Self { frame, component })
     }
 
     #[inline]
@@ -469,7 +470,7 @@ pub enum PlaneComponent {
 
 impl PlaneComponent {
     #[inline]
-    fn to_ffi(self) -> u32 {
+    fn to_ffi(self) -> vvdecComponentType {
         match self {
             PlaneComponent::Y => vvdecComponentType_VVDEC_CT_Y,
             PlaneComponent::U => vvdecComponentType_VVDEC_CT_U,
@@ -609,7 +610,7 @@ impl NalType {
             vvdecNalType_VVC_NAL_UNIT_SUFFIX_SEI => SuffixSei,
             vvdecNalType_VVC_NAL_UNIT_FD => Fd,
             vvdecNalType_VVC_NAL_UNIT_INVALID => Invalid,
-            _ => Unknown(nal_type),
+            _ => Unknown(nal_type.try_into().unwrap()),
         }
     }
 }
@@ -635,7 +636,7 @@ impl SliceType {
             vvdecSliceType_VVDEC_SLICETYPE_I => I,
             vvdecSliceType_VVDEC_SLICETYPE_P => P,
             vvdecSliceType_VVDEC_SLICETYPE_B => B,
-            _ => Unknown(slice_type),
+            _ => Unknown(slice_type.try_into().unwrap()),
         }
     }
 }

@@ -8,7 +8,23 @@ fn basic() {
     // 2. PSNR on the decoded output or plain hash checking
     Command::cargo_bin("vvdecli")
         .unwrap()
-        .args(["-i", "../tests/short.vvc", "-o", "/tmp/decoded.y4m"])
+        .args(&[
+            "-i",
+            std::env::current_dir()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join("tests")
+                .join("short.vvc")
+                .to_str()
+                .unwrap(),
+            "-o",
+            tempfile::NamedTempFile::new()
+                .unwrap()
+                .path()
+                .to_str()
+                .unwrap(),
+        ])
         .assert()
         .success();
 }

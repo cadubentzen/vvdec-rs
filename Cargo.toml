@@ -21,7 +21,7 @@ repository.workspace = true
 
 [dependencies]
 thiserror = "2"
-vvdec-sys = { path = "./vvdec-sys", version = "0.5.5" }
+vvdec-sys = { path = "./vvdec-sys", version = "0.6.0" }
 
 [features]
 docsrs = ["vvdec-sys/docsrs"]

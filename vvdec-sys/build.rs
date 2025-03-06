@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use bindgen::{RustEdition, RustTarget};
+
 const VVDEC_VERSION: &str = "3.0.0";
 
 mod vendored {
@@ -38,6 +40,9 @@ fn main() {
     let library = dependencies.get_by_name("libvvdec").unwrap();
 
     let bindings = bindgen::Builder::default()
+        // FIXME: InvalidRustTarget doesn't implement Debug?!
+        .rust_target(RustTarget::stable(80, 1).map_err(|_| ()).unwrap())
+        .rust_edition(RustEdition::Edition2021)
         .header("wrapper.h")
         .clang_args(
             library

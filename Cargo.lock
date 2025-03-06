@@ -651,7 +651,7 @@ checksum = "852e951cb7832cb45cb1169900d19760cfa39b82bc0ea9c0e5a14ae88411c98b"
 
 [[package]]
 name = "vvdec"
-version = "0.6.9"
+version = "0.6.10"
 dependencies = [
  "thiserror",
  "vvdec-sys",

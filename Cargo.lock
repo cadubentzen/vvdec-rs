@@ -650,7 +650,7 @@ checksum = "852e951cb7832cb45cb1169900d19760cfa39b82bc0ea9c0e5a14ae88411c98b"
 
 [[package]]
 name = "vvdec"
-version = "0.6.10"
+version = "0.6.11"
 dependencies = [
  "thiserror",
  "vvdec-sys",
@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "vvdecli"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "anyhow",
  "assert_cmd",

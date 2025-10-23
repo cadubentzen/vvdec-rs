@@ -504,6 +504,8 @@ pub struct PictureAttributes {
     pub vui: Option<Vui>,
     /// HRD parameters
     pub hrd: Option<Hrd>,
+    /// Sequence information
+    pub seq_info: Option<SeqInfo>,
 }
 
 impl PictureAttributes {
@@ -517,6 +519,7 @@ impl PictureAttributes {
             bits,
             vui,
             hrd,
+            seqInfo,
             ..
         } = unsafe { pic_attributes.as_ref() };
         Self {
@@ -528,6 +531,7 @@ impl PictureAttributes {
             num_compressed_bits: bits,
             vui: ptr::NonNull::new(vui).map(Vui::new),
             hrd: ptr::NonNull::new(hrd).map(Hrd::new),
+            seq_info: ptr::NonNull::new(seqInfo).map(SeqInfo::new),
         }
     }
 }
@@ -815,6 +819,39 @@ impl Vui {
                 sarHeight,
             )),
             is_aspect_ratio_constant: aspectRatioConstantFlag,
+        }
+    }
+}
+
+/// Sequence information.
+#[derive(Debug)]
+pub struct SeqInfo {
+    /// Maximum picture width in luma samples.
+    pub max_width: u32,
+    /// Maximum picture height in luma samples.
+    pub max_height: u32,
+    /// Maximum latency increase plus 1 across all temporal layers.
+    pub max_latency_increase_plus1: u32,
+    /// Maximum number of reorder pictures across all temporal layers.
+    pub max_num_reorder_pics: u8,
+}
+
+impl SeqInfo {
+    fn new(seq_info: ptr::NonNull<vvdecSeqInfo>) -> Self {
+        let seq_info = unsafe { seq_info.as_ref() };
+        let &vvdecSeqInfo {
+            maxWidth,
+            maxHeight,
+            maxLatencyIncreasePlus1,
+            maxNumReorderPics,
+            ..
+        } = seq_info;
+
+        Self {
+            max_width: maxWidth,
+            max_height: maxHeight,
+            max_latency_increase_plus1: maxLatencyIncreasePlus1,
+            max_num_reorder_pics: maxNumReorderPics,
         }
     }
 }
